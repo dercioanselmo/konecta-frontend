@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Logo } from "@/components/Logo";
@@ -59,10 +60,10 @@ function VerifyOtpForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <div className="mb-6 flex items-center gap-3">
+      <Link href="/login" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Confirmar código</h1>
-      </div>
+      </Link>
 
       <p className="mb-6 text-sm text-muted">
         Enviámos um código de 6 dígitos para <span className="font-medium text-foreground">{email}</span>.
@@ -86,6 +87,9 @@ function VerifyOtpForm() {
         </Button>
         <Button type="button" variant="ghost" loading={resending} onClick={handleResend}>
           Reenviar código
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => router.push("/login")}>
+          Cancelar
         </Button>
       </form>
     </div>

@@ -56,10 +56,10 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <div className="mb-6 flex items-center gap-3">
+      <Link href="/login" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Criar conta</h1>
-      </div>
+      </Link>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">

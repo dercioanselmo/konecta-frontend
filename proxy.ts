@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authApiFetch } from "@/lib/auth/authApi";
-import { decodeJwtPayload, isExpired, roleFromClaims, type AccessTokenClaims } from "@/lib/auth/jwt";
-import { ROLE_PROTECTED_PREFIXES, roleHomePath } from "@/lib/auth/roles";
+import { decodeJwtPayload, isExpired, type AccessTokenClaims } from "@/lib/auth/jwt";
+import { ROLE_PROTECTED_PREFIXES } from "@/lib/auth/roles";
 import type { TokenResponse } from "@/lib/auth/types";
 
 const ACCESS_COOKIE = "konecta_access_token";
@@ -29,7 +29,6 @@ export async function proxy(request: NextRequest) {
   const initialClaims = rawAccessToken ? decodeJwtPayload<AccessTokenClaims>(rawAccessToken) : null;
 
   let accessToken = rawAccessToken && !isExpired(initialClaims) ? rawAccessToken : undefined;
-  let claims = accessToken ? initialClaims : null;
   let refreshedTokens: TokenResponse | null = null;
   let refreshFailed = false;
 
@@ -40,7 +39,6 @@ export async function proxy(request: NextRequest) {
         body: JSON.stringify({ refreshToken }),
       });
       accessToken = refreshedTokens.accessToken;
-      claims = decodeJwtPayload<AccessTokenClaims>(accessToken);
     } catch {
       // Refresh token was invalid/expired/already used — treat as logged out.
       refreshFailed = true;
@@ -59,15 +57,20 @@ export async function proxy(request: NextRequest) {
     request.cookies.delete(REFRESH_COOKIE);
   }
 
-  const role = roleFromClaims(claims);
-
+  // Role-based routing is intentionally NOT decided here. The JWT's `roles`
+  // claim is fixed at token-issue time and goes stale the moment a user's
+  // role changes server-side (e.g. an admin approves a role-upgrade
+  // request) without a fresh login/refresh — while RoleLanding/AdminShell
+  // downstream always check the *live* role via GET /users/me. Redirecting
+  // here on the stale claim while those pages redirect on the live one
+  // caused an infinite redirect loop for a just-approved user. Proxy only
+  // enforces "is there a session at all"; the pages are the sole authority
+  // on "is it the right role."
   let response: NextResponse;
   if (protectedMatch && !accessToken) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     response = NextResponse.redirect(loginUrl);
-  } else if (protectedMatch && role && role !== protectedMatch.role) {
-    response = NextResponse.redirect(new URL(roleHomePath(role), request.url));
   } else {
     response = NextResponse.next({ request });
   }

@@ -16,10 +16,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
       <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <Link href="/admin" className="flex items-center gap-3">
           <Logo size={32} />
           <span className="text-lg font-bold text-foreground">Administração</span>
-        </div>
+        </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <LogoutButton />

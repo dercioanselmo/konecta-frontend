@@ -71,10 +71,10 @@ function LoginForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col justify-center px-6 py-8">
-      <div className="mb-6 flex items-center gap-3">
+      <Link href="/login" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Entrar</h1>
-      </div>
+      </Link>
 
       {justVerified ? (
         <p className="mb-4 rounded-xl bg-brand-green/10 px-4 py-3 text-sm text-brand-green">

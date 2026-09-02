@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Logo } from "@/components/Logo";
@@ -53,10 +54,10 @@ export function CompleteProfileForm({ user }: { user: UserProfile }) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <div className="mb-2 flex items-center gap-3">
+      <Link href={ROLE_HOME_CLIENT[user.role]} className="mb-2 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Concluir registo</h1>
-      </div>
+      </Link>
       <p className="mb-6 text-sm text-muted">
         Entrou com {user.email}. Falta preencher estes dados para usar a KONECTA.
       </p>

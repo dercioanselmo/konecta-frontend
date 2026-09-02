@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Logo } from "@/components/Logo";
@@ -63,10 +64,10 @@ function SetPasswordForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col justify-center px-6 py-8">
-      <div className="mb-6 flex items-center gap-3">
+      <Link href="/login" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Definir palavra-passe</h1>
-      </div>
+      </Link>
 
       <p className="mb-6 text-sm text-muted">
         A concluir a configuração da conta <span className="font-medium text-foreground">{email}</span>.

@@ -79,10 +79,17 @@ JWTs never reach client JavaScript.
 - `lib/auth/roles.ts` maps role → landing path: `CUSTOMER → /home`,
   `MERCHANT → /merchant`, `COURIER → /courier`, `ADMIN → /admin`,
   `MOBILITY_PARTNER → /` (no dashboard yet).
-- `proxy.ts` redirects unauthenticated users to `/login` and blocks a
-  wrong-role user from another role's base path.
+- `proxy.ts` only redirects unauthenticated users to `/login` — it does
+  **not** decide role-based redirects. That's deliberate: the JWT's role
+  claim is fixed at token-issue time and goes stale the instant a user's
+  role changes server-side (e.g. an admin approves a role-upgrade request)
+  without a fresh login, while the page guards below always check the
+  *live* role. Two disagreeing sources of truth caused an infinite redirect
+  loop for a just-approved user — see `context.md`/git history for the
+  postmortem. Role-based routing now has exactly one authority.
 - `components/RoleLanding.tsx` — shared guard component behind the
-  `/home`, `/merchant`, `/courier` stub pages (see below).
+  `/home`, `/merchant`, `/courier` stub pages (see below); redirects to the
+  correct role home using a live `GET /users/me` call.
 - `components/admin/AdminShell.tsx` — same idea, but as an `app/admin/layout.tsx`
   wrapping every admin page in one guard instead of repeating it per page.
 
@@ -124,8 +131,9 @@ hydration mismatch reading `localStorage`). An inline script in
 
 ### Merchant / Courier / Admin — login only
 
-Same `/login` page for every role; `proxy.ts` + role-mapped landing paths
-route them correctly after auth. Merchant (`/merchant`) and Courier
+Same `/login` page for every role; login redirects to the right role home,
+and each role's page guard (`RoleLanding`/`AdminShell`) re-confirms that
+live on every load. Merchant (`/merchant`) and Courier
 (`/courier`) are currently **stub landing pages only** (`RoleLanding.tsx`)
 — "Bem-vindo(a)" + logout, no real dashboard yet. Admin is further along
 (see next section).

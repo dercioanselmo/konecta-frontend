@@ -26,6 +26,42 @@ banner renders correctly for that account. **Still not verified**: the
 admin-only actions (list/create/edit/role/enable/approve/reject) — no ADMIN
 account exists to test with (see "Needs your attention").
 
+### Bugfix: infinite redirect loop for a just-approved user
+
+A user real-world tested this: registered with `requestedRole: MERCHANT`,
+got approved by an admin, then hit `ERR_TOO_MANY_REDIRECTS` bouncing between
+`/` and `/home`. Root cause: **two different sources of truth for "what's
+this user's role" that can disagree.** `proxy.ts` decided role-based
+redirects from the JWT's `roles` claim — fixed at token-issue time, and
+never refreshed just because the DB role changed server-side (approval
+doesn't reissue the user's existing token). Meanwhile `RoleLanding`/
+`AdminShell` decide from a **live** `GET /users/me` call. Right after
+approval: JWT still says `CUSTOMER`, live profile says `MERCHANT` → proxy
+sends a `/merchant` request back to `/home` (using the stale claim), the
+`/home` page's live check sees the *real* role is `MERCHANT` and sends them
+to `/merchant` — infinite loop, one redirect each hop, since the two layers
+never agree.
+
+**Fix**: `proxy.ts` no longer makes any role-based redirect decision at
+all — it only checks "is there a valid/refreshable session" (redirects to
+`/login` if not) and lets the request through otherwise. All role-based
+routing is now decided in exactly one place: the page-level guards
+(`RoleLanding`, `AdminShell`), which always use live `/users/me` data. This
+makes the loop structurally impossible — there's only one authority left,
+so it can't disagree with itself. Cost: a wrong-role user does one extra
+round-trip through the wrong page's guard before landing correctly, instead
+of proxy short-circuiting it — a non-issue since that guard check is cheap
+and was already happening anyway.
+
+**Not yet addressed**: the user's *access token itself* still carries the
+stale role claim for up to 15 minutes (until it naturally expires and
+refreshes) or until they log out/in again. This only matters once there's
+a real Merchant/Courier dashboard making role-gated API calls that the
+*backend* authorizes off the JWT claim rather than a live DB check — purely
+cosmetic today since the merchant/courier shells are still stubs with no
+protected actions. Worth revisiting if a just-approved user reports being
+treated as their old role by an actual API call, not just page routing.
+
 ### How this feature evolved: built ahead of the backend, then reconciled
 
 Originally the backend had none of this — no create-user endpoint, no

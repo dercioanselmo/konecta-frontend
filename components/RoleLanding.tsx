@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -17,10 +18,10 @@ export async function RoleLanding({ role, title }: { role: Role; title: string }
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
       <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Link href={roleHomePath(role)} className="flex items-center gap-3">
           <Logo size={36} />
           <span className="text-lg font-bold text-foreground">{title}</span>
-        </div>
+        </Link>
         <ThemeToggle />
       </header>
 

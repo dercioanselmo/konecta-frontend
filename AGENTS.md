@@ -58,7 +58,7 @@ Do not design a new visual brand from scratch if the project already has tokens/
 ---
 
 # 4. Backend already available (Phase 1)
-Read the doc API_REFERENCE.md for the security, user register, login, etc.
+Read the doc API_REFERENCE-security-service.md for the security, user register, login, etc.
 
 ### Authentication / Identity service
 

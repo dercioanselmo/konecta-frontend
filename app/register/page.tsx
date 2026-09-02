@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { registerSchema, type RegisterFormValues } from "@/lib/auth/validation";
 import { registerCustomer, fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
-import type { Neighborhood } from "@/lib/auth/types";
+import { ROLE_LABELS, REQUESTABLE_ROLES } from "@/lib/auth/roleLabels";
+import type { Neighborhood, RequestableRole } from "@/lib/auth/types";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,7 +36,10 @@ export default function RegisterPage() {
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
     try {
-      await registerCustomer(values);
+      await registerCustomer({
+        ...values,
+        requestedRole: values.requestedRole ? (values.requestedRole as RequestableRole) : undefined,
+      });
       router.push(`/verify-otp?email=${encodeURIComponent(values.email)}`);
     } catch (error) {
       if (error instanceof ClientApiError) {
@@ -78,6 +82,18 @@ export default function RegisterPage() {
             </option>
           ))}
         </Select>
+        <Select label="Quero registar-me como" {...register("requestedRole")} defaultValue="">
+          <option value="">Cliente</option>
+          {REQUESTABLE_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
+        </Select>
+        <p className="-mt-2 text-xs text-muted">
+          Escolher Comerciante, Entregador ou Parceiro de Mobilidade cria a sua conta como Cliente enquanto o
+          pedido aguarda aprovação da administração.
+        </p>
 
         {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
 

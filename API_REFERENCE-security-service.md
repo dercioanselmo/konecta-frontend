@@ -43,7 +43,7 @@ Authorization: Bearer <accessToken>
 6. When a request 401s with `INVALID_REFRESH_TOKEN` or the access token nears expiry, call `POST /auth/refresh` to rotate.
 7. `POST /auth/logout` when the user signs out, to revoke the refresh token server-side.
 
-> Self-registration always assigns `CUSTOMER`. There is no signup path to Merchant, Courier, Admin, or Mobility Partner — those roles are granted by an admin via [Assign role](#patch-apiv1adminusersidrole).
+> Self-registration always assigns `CUSTOMER` immediately. A customer can additionally *request* to become a Merchant, Courier, or Mobility Partner at registration time (`requestedRole` field) — that role is only granted once an admin approves it. See [Role upgrade requests](#role-upgrade-requests) below. Admin can also be granted directly via [Assign role](#patch-apiv1adminusersidrole) — there is no self-request path to `ADMIN`.
 
 ---
 
@@ -66,6 +66,7 @@ Creates a customer account and fires off a registration OTP by email. City is lo
 | `address` | string | Required |
 | `city` | string | Must be `"Maputo"` |
 | `neighborhood` | string | Must match a seeded bairro for the given city |
+| `requestedRole` | string, optional | If present, one of `MERCHANT`, `COURIER`, `MOBILITY_PARTNER` — submits a role-upgrade request for admin review. Omit entirely for a plain customer signup. |
 
 **Response `201 Created`**
 
@@ -81,6 +82,8 @@ Creates a customer account and fires off a registration OTP by email. City is lo
   "city": "Maputo",
   "neighborhood": "Central",
   "role": "CUSTOMER",
+  "status": "ACTIVE",
+  "requestedRole": null,
   "emailVerified": false,
   "phoneVerified": false,
   "enabled": true,
@@ -88,12 +91,15 @@ Creates a customer account and fires off a registration OTP by email. City is lo
 }
 ```
 
+If `requestedRole` was supplied, the response instead has `status: "PENDING"` and `requestedRole` set to what was requested — `role` stays `CUSTOMER` until approved.
+
 **Errors**
 
 | Status | Code | Meaning |
 |---|---|---|
 | 409 | `EMAIL_ALREADY_REGISTERED` | Email already exists |
 | 400 | `VALIDATION_ERROR` | See `details[]` for the failing field(s), incl. bad city / neighborhood / phone |
+| 400 | `ROLE_NOT_REQUESTABLE` | `requestedRole` was something other than `MERCHANT`, `COURIER`, or `MOBILITY_PARTNER` (e.g. `ADMIN`, or `CUSTOMER`) |
 
 ---
 
@@ -120,6 +126,24 @@ Confirms a one-time code. Currently wired up for `purpose: "REGISTER"`, which ma
 | 400 | `OTP_INVALID` | Code doesn't match |
 | 429 | `OTP_LOCKED` | Too many wrong attempts — request a new code |
 | 400 | `UNSUPPORTED_OTP_PURPOSE` | `LOGIN` / `VERIFY_PHONE` aren't wired to an action yet |
+
+---
+
+### `POST /api/v1/auth/set-password` — Public
+
+Completes an admin-issued invite (see [Create staff user](#post-apiv1adminusers)) — sets a password on an account that had none, and logs the user in. The `code` is the token embedded in the "Set up your KONECTA account" email link.
+
+**Request body**
+
+| Field | Type | Notes |
+|---|---|---|
+| `email` | string | The invited account's email |
+| `code` | string | The token from the invite email/link |
+| `newPassword` | string | 8–100 chars |
+
+**Response `200 OK`** — same shape as [Login](#post-apiv1authlogin) (logs the user straight in).
+
+**Errors:** same OTP errors as [Verify OTP](#post-apiv1authverify-otp) (`OTP_NOT_FOUND`, `OTP_EXPIRED`, `OTP_INVALID`, `OTP_LOCKED`), plus `404 USER_NOT_FOUND`.
 
 ---
 
@@ -254,6 +278,19 @@ Updates the editable profile fields. Name, phone, and address change freely; cit
 
 ---
 
+## Role upgrade requests
+
+How a `CUSTOMER` becomes a `MERCHANT`/`COURIER`/`MOBILITY_PARTNER` without an admin creating their account directly:
+
+1. `POST /auth/register` with `requestedRole` set — account is created as `CUSTOMER`, `status: "PENDING"`, `requestedRole` set to what was requested.
+2. Admin reviews pending applications: `GET /admin/users?status=PENDING`.
+3. Admin approves (`POST /admin/users/{id}/approve`) — `role` flips to `requestedRole`, `requestedRole` clears, `status` returns to `"ACTIVE"`.
+   Or rejects (`POST /admin/users/{id}/reject`) — `role` stays `CUSTOMER`, `requestedRole` clears, `status` becomes `"REJECTED"`. The user can still log in and use the app as a normal customer either way.
+
+`status` and `enabled` are independent — a `DISABLED`-via-[enable/disable toggle](#patch-apiv1adminusersidenabled) account is `enabled: false` regardless of `status`, and a rejected applicant is still `enabled: true`.
+
+---
+
 ## Admin
 
 Requires `ROLE_ADMIN` — a non-admin token gets a 403 `ACCESS_DENIED`, no token gets a 401.
@@ -267,6 +304,8 @@ Search and paginate the user directory.
 | Param | Type | Notes |
 |---|---|---|
 | `query` | string | Optional — matches email, first or last name (contains, case-insensitive) |
+| `role` | string | Optional — filter to one role code (e.g. `MERCHANT`) |
+| `status` | string | Optional — `PENDING` \| `ACTIVE` \| `REJECTED` |
 | `page` | int | Default 0 |
 | `size` | int | Default 20 |
 | `sort` | string | e.g. `createdAt,desc` |
@@ -297,9 +336,49 @@ Full profile for one user by id.
 
 ---
 
+### `POST /api/v1/admin/users` — Admin
+
+Directly onboards a staff account (Merchant, Courier, Admin, or Mobility Partner) without self-registration. No password is collected — the new user gets an emailed one-time link to set their own password (see [Set password](#post-apiv1authset-password)), the same way OTP emails work.
+
+**Request body**
+
+| Field | Type | Notes |
+|---|---|---|
+| `firstName` | string | Required |
+| `lastName` | string | Required |
+| `email` | string | Required, unique |
+| `phone` | string | Same MZ format as register |
+| `address` | string | Required |
+| `city` | string | Must be `"Maputo"` |
+| `neighborhood` | string | Must match a seeded bairro |
+| `role` | string | One of `MERCHANT`, `COURIER`, `ADMIN`, `MOBILITY_PARTNER` — **not** `CUSTOMER` (self-registration owns that role) |
+
+**Response `201 Created`** — a `UserProfileResponse` with `emailVerified: false` and `role` set to what was requested. Becomes usable once the invite link is completed.
+
+**Errors**
+
+| Status | Code | Meaning |
+|---|---|---|
+| 409 | `EMAIL_ALREADY_REGISTERED` | Email already exists |
+| 400 | `ROLE_NOT_ALLOWED` | `role` was `CUSTOMER` — use `/auth/register` instead |
+| 400 | `UNKNOWN_ROLE` | `role` doesn't match a seeded role |
+| 400 | `VALIDATION_ERROR` | Bad city/neighborhood/phone/etc. |
+
+---
+
+### `PATCH /api/v1/admin/users/{id}` — Admin
+
+Same field set and validation as [`PATCH /api/v1/users/me`](#patch-apiv1usersme), but lets an admin edit *any* user's profile — for fixing a phone number or bairro from the admin panel, for example. Does not touch email, password, or role.
+
+**Request body:** identical to `PATCH /api/v1/users/me`.
+
+**Response `200 OK`** — the updated profile.
+
+---
+
 ### `PATCH /api/v1/admin/users/{id}/role` — Admin
 
-The only way to move a user into `MERCHANT`, `COURIER`, `ADMIN`, or `MOBILITY_PARTNER`. Fires a `user.role_changed` event.
+Directly moves a user into `MERCHANT`, `COURIER`, `ADMIN`, or `MOBILITY_PARTNER` — bypassing the [role-request/approve flow](#role-upgrade-requests) entirely. Fires a `user.role_changed` event. If the user had a pending role request, it's cleared and `status` resets to `"ACTIVE"` (a direct assignment supersedes it).
 
 **Request body**
 
@@ -326,6 +405,44 @@ Suspend or restore an account. Disabling fires a `user.disabled` event and block
 | `enabled` | boolean |
 
 **Response `200 OK`** — the updated profile.
+
+---
+
+### `POST /api/v1/admin/users/{id}/approve` — Admin
+
+Approves a pending [role upgrade request](#role-upgrade-requests): grants `requestedRole` as the user's new `role`, clears `requestedRole`, sets `status: "ACTIVE"`. Fires a `user.role_changed` event.
+
+**Request body:** none.
+
+**Response `200 OK`** — the updated profile.
+
+**Errors**
+
+| Status | Code | Meaning |
+|---|---|---|
+| 404 | `USER_NOT_FOUND` | No user with that id |
+| 409 | `USER_NOT_PENDING` | User has no pending role request (already decided, or never requested one) |
+
+---
+
+### `POST /api/v1/admin/users/{id}/reject` — Admin
+
+Denies a pending role upgrade request. `role` is left unchanged (typically still `CUSTOMER`), `requestedRole` clears, `status` becomes `"REJECTED"`. Does **not** disable the account — the user keeps using the app as whatever role they already had.
+
+**Request body**
+
+| Field | Type | Notes |
+|---|---|---|
+| `reason` | string, optional | Free-text note, stored on the user record as `statusReason` (not currently exposed in `UserProfileResponse`, but kept server-side) |
+
+**Response `200 OK`** — the updated profile.
+
+**Errors**
+
+| Status | Code | Meaning |
+|---|---|---|
+| 404 | `USER_NOT_FOUND` | No user with that id |
+| 409 | `USER_NOT_PENDING` | User has no pending role request |
 
 ---
 
@@ -385,6 +502,8 @@ One role per user for now. The `roles` claim on the access token is a single `RO
 | `city` | string |
 | `neighborhood` | string |
 | `role` | string |
+| `status` | string — `PENDING` \| `ACTIVE` \| `REJECTED` (see [Role upgrade requests](#role-upgrade-requests)) |
+| `requestedRole` | string, nullable — set only while `status` is `PENDING` |
 | `emailVerified` | boolean |
 | `phoneVerified` | boolean |
 | `enabled` | boolean |
@@ -427,6 +546,8 @@ Every non-2xx response — validation, auth, business-rule — shares this shape
 ```
 
 > **401 vs 403, quickly:** **401** means "no valid token was presented" (missing, expired, malformed). **403** means "valid token, wrong role" — e.g. a Customer token hitting an Admin route.
+
+Both of these now consistently return the standard envelope too — `401` as `{"code": "UNAUTHENTICATED", ...}`, `403` as `{"code": "ACCESS_DENIED", ...}` — even though they're raised by the security filter chain, not a controller.
 
 ---
 

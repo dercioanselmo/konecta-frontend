@@ -2,6 +2,10 @@ import { z } from "zod";
 
 export const phoneRegex = /^(\+258)?8[2-7]\d{7}$/;
 
+// A CUSTOMER may self-request one of these at registration, pending admin
+// approval — "" means a plain customer signup (the common case).
+export const requestableRoleSchema = z.enum(["MERCHANT", "COURIER", "MOBILITY_PARTNER"]);
+
 export const registerSchema = z.object({
   firstName: z.string().min(1, "Indique o primeiro nome"),
   lastName: z.string().min(1, "Indique o último nome"),
@@ -12,6 +16,7 @@ export const registerSchema = z.object({
   address: z.string().min(1, "Indique o endereço"),
   city: z.literal("Maputo"),
   neighborhood: z.string().min(1, "Selecione o bairro"),
+  requestedRole: z.union([requestableRoleSchema, z.literal("")]).optional(),
 });
 
 export type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -41,3 +46,15 @@ export const completeProfileSchema = z.object({
 });
 
 export type CompleteProfileFormValues = z.infer<typeof completeProfileSchema>;
+
+export const setPasswordSchema = z
+  .object({
+    newPassword: z.string().min(8, "A palavra-passe deve ter pelo menos 8 caracteres"),
+    confirmPassword: z.string().min(1, "Confirme a palavra-passe"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "As palavras-passe não coincidem",
+    path: ["confirmPassword"],
+  });
+
+export type SetPasswordFormValues = z.infer<typeof setPasswordSchema>;

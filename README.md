@@ -1,36 +1,272 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KONECTA — Frontend
 
-## Getting Started
+Next.js (App Router) web client for **KONECTA**, a multi-merchant local
+commerce, payments, delivery and mobility platform for Maputo, Mozambique.
+Mobile-first. Roles: Customer, Merchant, Courier, Admin (Mobility Partner
+reserved for later).
 
-First, run the development server:
+Full product/engineering ground rules live in [`AGENTS.md`](./AGENTS.md) —
+read that first if you're implementing something new. This file is a
+snapshot of **what's actually built so far**.
+
+---
+
+## Tech stack
+
+| Concern | Choice |
+|---|---|
+| Framework | Next.js 16 (App Router) + TypeScript, Turbopack |
+| Styling | Tailwind CSS v4, brand tokens in `app/globals.css` |
+| Forms/validation | React Hook Form + Zod |
+| Auth | KONECTA Auth microservice (Spring Boot, separate repo) — JWT access + refresh |
+| HTTP | One shared server-only client (`lib/auth/authApi.ts`) behind Next.js Route Handlers (BFF pattern) — no raw `fetch` scattered around, no tokens ever reach the browser |
+| Fonts | Poppins (`next/font/google`) |
+
+---
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # set AUTH_API_BASE_URL to your local Auth service
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Checks before shipping anything:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx tsc --noEmit   # after adding a new dynamic route, run `npx next typegen` first (see below)
+npx eslint .
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+### BFF pattern — nothing talks to the Auth service from the browser
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Every call to the Auth microservice goes through a Next.js Route Handler
+under `app/api/**`, which calls the backend server-side via
+`lib/auth/authApi.ts` (marked `server-only`). `AUTH_API_BASE_URL` and raw
+JWTs never reach client JavaScript.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Sessions: httpOnly cookies + silent refresh in `proxy.ts`
 
-## Deploy on Vercel
+- Access + refresh tokens live in `konecta_access_token` /
+  `konecta_refresh_token`, httpOnly, `secure` in prod, `sameSite=lax`.
+- **`proxy.ts`** (Next 16 renamed `middleware.ts` → `proxy.ts`) runs on
+  nearly every page request. It's the *only* place a GET page navigation
+  can legally refresh and persist cookies — `cookies()` during a Server
+  Component render is read-only and throws if you try to write to it. If
+  the access token is expired but the refresh token is valid, `proxy.ts`
+  calls `POST /auth/refresh` itself, writes the new cookies onto the
+  response, and mirrors them onto the request so the page that renders next
+  sees the fresh token immediately.
+- `lib/auth/session.ts` has two tiers: `getCurrentUser()` /
+  `getValidAccessToken()` are **read-only** (safe from any Server
+  Component); `getValidAccessTokenWithRefresh()` actively refreshes and is
+  only for Route Handlers/Server Actions, where writing cookies is legal.
+  Getting this split wrong crashed the splash page under Firefox once a
+  session's access token expired — see git history / old context notes if
+  you need the postmortem.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Role-based routing & guards
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `lib/auth/jwt.ts` decodes the JWT payload (no signature check — that's
+  the backend's job; this is UI routing only, on a token our own server
+  wrote into an httpOnly cookie).
+- `lib/auth/roles.ts` maps role → landing path: `CUSTOMER → /home`,
+  `MERCHANT → /merchant`, `COURIER → /courier`, `ADMIN → /admin`,
+  `MOBILITY_PARTNER → /` (no dashboard yet).
+- `proxy.ts` redirects unauthenticated users to `/login` and blocks a
+  wrong-role user from another role's base path.
+- `components/RoleLanding.tsx` — shared guard component behind the
+  `/home`, `/merchant`, `/courier` stub pages (see below).
+- `components/admin/AdminShell.tsx` — same idea, but as an `app/admin/layout.tsx`
+  wrapping every admin page in one guard instead of repeating it per page.
+
+### Mandatory profile completion (Google OAuth gap)
+
+The Auth service auto-creates/links an account on first Google login with
+only email + name — `phone`/`address`/`neighborhood` come back empty. It
+must be impossible to reach the app with a half-formed account, so every
+entry point (`app/auth/callback/route.ts`, `app/login/page.tsx`,
+`app/page.tsx`, `components/RoleLanding.tsx`, `components/admin/AdminShell.tsx`)
+checks `lib/auth/profile.ts`'s `isProfileComplete()` and redirects to
+**`/complete-profile`** if any required field is missing. Email/password
+registration already collects everything up front, so this is a no-op for
+that path.
+
+### Theming
+
+Dark mode by default (brand rule), light-mode toggle available.
+`lib/theme/ThemeProvider.tsx` uses `useSyncExternalStore` (not
+`useState`+`useEffect`, which either fails an eslint rule or causes a
+hydration mismatch reading `localStorage`). An inline script in
+`app/layout.tsx` applies the class before hydration to avoid a flash.
+
+---
+
+## What's built
+
+### Public / Customer auth
+
+| Route | Purpose |
+|---|---|
+| `/` | Splash. Redirects already-authenticated users to their role home (or `/complete-profile`). Footer link to `/login` for staff (same login, role comes from the JWT). |
+| `/register` | Customer self-registration (Zod-validated, bairro dropdown from `/meta/neighborhoods`). Includes an optional "Quero registar-me como" role select — picking Comerciante/Entregador/Parceiro de Mobilidade submits a `requestedRole`, landing the account as `CUSTOMER` + `status: PENDING` until an admin approves it (see Admin section below). |
+| `/verify-otp` | 6-digit OTP confirm + resend, then redirects to `/login`. |
+| `/login` | Email/password + "Continuar com Google". A Gmail address that fails password login auto-redirects to Google login (`lib/auth/client.ts`'s `isGmailAddress`) — a Gmail account failing on password is almost always "registered via Google," not a typo. |
+| `/auth/callback` | Google OAuth landing route (confirmed live path — **not** `/api/auth/google/callback`, see `.env.example`). Sets cookies server-side, never exposes tokens to client JS. |
+| `/complete-profile` | Gate for accounts missing required fields (see above). |
+| `/set-password` | Landing page for an admin-created account's invite email (`?email=...&code=...`). Sets the user's password via `POST /auth/set-password` and logs them straight in. **The exact query-param shape is a frontend assumption** — confirm it matches whatever URL the backend's invite email actually sends (see `app/set-password/page.tsx`'s doc comment). |
+
+### Merchant / Courier / Admin — login only
+
+Same `/login` page for every role; `proxy.ts` + role-mapped landing paths
+route them correctly after auth. Merchant (`/merchant`) and Courier
+(`/courier`) are currently **stub landing pages only** (`RoleLanding.tsx`)
+— "Bem-vindo(a)" + logout, no real dashboard yet. Admin is further along
+(see next section).
+
+### Admin dashboard — User management
+
+The only Admin feature built so far (Orders ops, Transactions/commissions
+are not started). Fully wired against the real backend contract in
+[`API_REFERENCE-security-service.md`](./API_REFERENCE-security-service.md)
+— there is no more assumed/mocked API surface here.
+
+| Route | Purpose |
+|---|---|
+| `/admin` | Overview, shows a pending-approvals count. |
+| `/admin/users` | Search/filter (role, status)/paginate the user directory. Inline actions: approve/reject (pending), activate/deactivate, edit link. |
+| `/admin/users/new` | Direct onboarding form for Merchant/Courier/Admin/Mobility Partner — bypasses public self-registration. The created account has no password; the invited user completes setup via `/set-password`. |
+| `/admin/users/[id]` | View/edit any user's profile, change role, activate/deactivate, approve/reject a pending role request. |
+
+**Two independent status concepts** — don't conflate them:
+
+- **`status`** (`PENDING` / `ACTIVE` / `REJECTED`) — tracks a *role-upgrade
+  request* (`requestedRole`, submitted at `/register`). Only meaningful for
+  self-registered customers who asked to become a Merchant/Courier/Mobility
+  Partner. `approve`/`reject` only apply while `status: PENDING` — a 409
+  `USER_NOT_PENDING` otherwise.
+- **`enabled`** (boolean) — the existing suspend/restore toggle, orthogonal
+  to `status`. Shown as a separate "Desativada" badge in the UI.
+
+A user created directly via `/admin/users/new` gets their `role` assigned
+immediately (no approval step) — `status`/`requestedRole` are only ever
+populated by the self-service `requestedRole` path at `/register`.
+
+---
+
+## API integration
+
+Every endpoint documented in
+[`API_REFERENCE-security-service.md`](./API_REFERENCE-security-service.md)
+(the live Auth service contract) is used somewhere in this frontend — none
+are unused, and none of the frontend's calls are against assumed/mocked
+endpoints anymore. See that file for the authoritative request/response
+shapes.
+
+| Endpoint | Frontend call site |
+|---|---|
+| `POST /auth/register` (incl. optional `requestedRole`) | `app/api/auth/register/route.ts` |
+| `POST /auth/verify-otp` | `app/api/auth/otp/verify/route.ts` |
+| `POST /auth/set-password` | `app/api/auth/set-password/route.ts` (`/set-password` page) |
+| `POST /auth/login` | `app/api/auth/login/route.ts` |
+| `POST /auth/refresh` | `lib/auth/session.ts`, `proxy.ts` |
+| `POST /auth/logout` | `app/api/auth/logout/route.ts` |
+| `POST /auth/otp/request` | `app/api/auth/otp/request/route.ts` |
+| `GET /oauth2/authorization/google` | `app/api/auth/google/start/route.ts` |
+| `GET /users/me` | `lib/auth/session.ts`, login/callback/`me` routes |
+| `PATCH /users/me` | `app/api/auth/profile/route.ts` (complete-profile flow) |
+| `GET /admin/users` (incl. `role`/`status` filters) | `app/api/admin/users/route.ts` |
+| `POST /admin/users` | `app/api/admin/users/route.ts` |
+| `GET /admin/users/{id}` | `app/api/admin/users/[id]/route.ts` |
+| `PATCH /admin/users/{id}` | `app/api/admin/users/[id]/route.ts` |
+| `PATCH /admin/users/{id}/role` | `app/api/admin/users/[id]/role/route.ts` |
+| `PATCH /admin/users/{id}/enabled` | `app/api/admin/users/[id]/enabled/route.ts` |
+| `POST /admin/users/{id}/approve` | `app/api/admin/users/[id]/approve/route.ts` |
+| `POST /admin/users/{id}/reject` | `app/api/admin/users/[id]/reject/route.ts` |
+| `GET /meta/neighborhoods` | `app/api/meta/neighborhoods/route.ts` |
+
+---
+
+## Project structure
+
+```
+app/
+  page.tsx                    splash
+  register/ verify-otp/ login/  public auth pages
+  auth/callback/route.ts      Google OAuth landing (BFF)
+  complete-profile/           profile-completion gate
+  set-password/                admin-invite completion page
+  home/ merchant/ courier/    role stub landings (RoleLanding.tsx)
+  admin/                      Admin dashboard (layout.tsx guards everything under it)
+    page.tsx                  overview
+    users/                    list, users/new (create), users/[id] (detail/edit)
+  api/
+    auth/                     BFF: register, login, logout, otp/*, profile, me, google/start, set-password
+    admin/users/              BFF: list/create, [id] get/edit, role, enabled, approve, reject
+    meta/neighborhoods/       BFF: bairro lookup
+
+lib/
+  auth/                       session/cookie handling, JWT decode, role maps, zod schemas,
+                               client-side fetch wrappers, server-only Auth API client
+  admin/                      admin-specific types, PT role/status labels, zod schemas,
+                               client-side fetch wrappers, BFF auth helper
+  theme/                      dark/light ThemeProvider
+  clsx.ts                     tiny className helper
+
+components/
+  ui/                         Button, Input, Select — reuse these, don't reinvent
+  admin/                      AdminShell (layout guard), Badge
+  Logo.tsx ThemeToggle.tsx LogoutButton.tsx RoleLanding.tsx
+
+proxy.ts                      runs on every page: silent token refresh + role gating
+```
+
+---
+
+## Environment variables
+
+See [`.env.example`](./.env.example). Key ones:
+
+- `AUTH_API_BASE_URL` — server-only, the Auth microservice base URL. Never
+  exposed to the browser.
+- `NEXT_PUBLIC_APP_URL` — used to build the Google OAuth callback URL.
+- The Auth service's `OAUTH_FRONTEND_REDIRECT_URI` must point at
+  `${NEXT_PUBLIC_APP_URL}/auth/callback` (confirmed against a live login —
+  not `/api/auth/google/callback`, despite that being the more
+  REST-conventional-looking path).
+
+---
+
+## Known gaps / needs attention
+
+- **No ADMIN account exists to test the admin flows live.** Self-registration
+  always creates a `CUSTOMER`; promoting to `ADMIN` needs an *existing*
+  admin token. Someone needs to seed the first admin on the backend side.
+  Everything Admin-specific (list/create/edit/role/enable/approve/reject)
+  has been verified for correct request shape and error handling, but not
+  actually exercised end-to-end with a real admin session.
+- **`/set-password`'s query-param shape is an assumption** — confirm the
+  admin-invite email actually links to `?email=...&code=...` and adjust
+  `app/set-password/page.tsx` if the real link is shaped differently.
+- **OTP verify** has only been checked for request/response wiring, not
+  against a real emailed code.
+- **No visual/browser QA** on any screen — everything so far has been
+  verified via `curl`/server logs against the live Auth service, plus
+  typecheck/lint/build. Worth a real click-through pass.
+- Merchant and Courier are login-only stubs; no dashboards yet.
+- Admin dashboard has no Orders ops or Transactions/commissions monitoring
+  yet (out of scope for the current feature slice).
+
+---
+
+## Related docs
+
+- [`AGENTS.md`](./AGENTS.md) — product rules, phases, and how to work in this repo.
+- [`API_REFERENCE-security-service.md`](./API_REFERENCE-security-service.md) — the live Auth service contract.
+- `context.md` — working notes for whatever feature is *currently* in progress (reset per feature, not a full history — this README is the durable reference).

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ApiErrorBody, Neighborhood, Role, UserProfile } from "./types";
+import type { ApiErrorBody, Neighborhood, RequestableRole, Role, UserProfile } from "./types";
 
 export class ClientApiError extends Error {
   code: string;
@@ -42,6 +42,8 @@ export interface RegisterPayload {
   address: string;
   city: string;
   neighborhood: string;
+  /** Self-request to become a Merchant/Courier/Mobility Partner, pending admin approval. */
+  requestedRole?: RequestableRole;
 }
 
 export function registerCustomer(payload: RegisterPayload) {
@@ -58,6 +60,11 @@ export function requestOtp(target: string, channel: "EMAIL" | "SMS", purpose: "R
 
 export function login(email: string, password: string) {
   return sendJson<UserProfile>("/api/auth/login", "POST", { email, password });
+}
+
+/** Completes an admin-issued invite (POST /auth/set-password) and logs the user in. */
+export function setPassword(email: string, code: string, newPassword: string) {
+  return sendJson<UserProfile>("/api/auth/set-password", "POST", { email, code, newPassword });
 }
 
 export interface CompleteProfilePayload {

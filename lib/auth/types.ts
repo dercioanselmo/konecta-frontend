@@ -1,5 +1,10 @@
 export type Role = "CUSTOMER" | "MERCHANT" | "COURIER" | "ADMIN" | "MOBILITY_PARTNER";
 
+/** A role a CUSTOMER may self-request at registration, pending admin approval. */
+export type RequestableRole = "MERCHANT" | "COURIER" | "MOBILITY_PARTNER";
+
+export type UserStatus = "PENDING" | "ACTIVE" | "REJECTED";
+
 export interface UserProfile {
   id: string;
   firstName: string;
@@ -11,8 +16,13 @@ export interface UserProfile {
   city: string;
   neighborhood: string;
   role: Role;
+  /** PENDING while a requestedRole awaits admin review; REJECTED if denied (role stays unchanged either way). */
+  status: UserStatus;
+  /** Set only while status is PENDING — the role that will be granted on approval. */
+  requestedRole?: Role | null;
   emailVerified: boolean;
   phoneVerified: boolean;
+  /** Independent of status — suspend/restore, orthogonal to the approval workflow. */
   enabled: boolean;
   createdAt: string;
 }

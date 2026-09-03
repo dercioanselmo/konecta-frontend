@@ -258,3 +258,10 @@ wasn't done — this session only chased the two symptoms actually reported.
   - `GET /merchant/shops` (list) still correctly `403`s for Admin — confirms the "list my shops" endpoint stayed merchant-only as intended, not accidentally opened up.
 - **Feature is fully closed.** Both `API_REFERENCE_MERCHANT_DASHBOARD.md` PROPOSED items are now marked RESOLVED with the live evidence above. Only remaining open item is the pre-existing, accepted `ownerName`/`ownerEmail: null` gap — frontend already handles it gracefully (falls back to raw `ownerId`), not a blocker.
 - No frontend code changes needed in this round — this was purely a live-verification pass confirming Round 4's build works against the real backend.
+
+## Round 6: "Lojas" box on the Admin dashboard home (2026-09-03)
+
+- Ask: mirror the existing "Utilizadores" box on `/admin` for shops — same big card, count badge, on the initial panel (not just the top nav added in Round 4).
+- `app/admin/page.tsx` — added a second `Link` card ("Lojas" → `/admin/shops`) below the existing "Utilizadores" one, same visual pattern (title + subtitle + count pill). Fetches `GET /api/v1/admin/shops?page=0&size=1` via `storesApiFetch` for `totalElements`, shown as an "N loja(s)" pill (brand-green, vs. the orange "pendente(s)" pill on Utilizadores since there's no urgency state for shops — just a count). Fails soft to no badge if the call errors, same pattern as the existing pending-count fetch.
+- **Live-verified end-to-end** through the actual running Next app (not just direct backend curl): logged in via `POST /api/auth/login` on `localhost:3000` (real session cookie), fetched `/admin` — rendered HTML confirms both cards present, "Lojas" card shows "2 lojas" pill and links to `/admin/shops`, matching the real backend's 2 seeded shops. Also independently verified `GET /api/admin/shops` (the BFF route) through the same session cookie returns the same 2 real shops.
+- `tsc --noEmit` and `eslint` both clean on the changed file.

@@ -9,7 +9,7 @@ import { listStaff, setStaffEnabled } from "@/lib/merchant/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { UserProfile } from "@/lib/auth/types";
 
-export function StaffList({ shopId }: { shopId: string }) {
+export function StaffList({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
   const [staff, setStaff] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -53,12 +53,14 @@ export function StaffList({ shopId }: { shopId: string }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Funcionários</h2>
-        <Link
-          href={`/merchant/shops/${shopId}/staff/new`}
-          className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
-        >
-          Novo funcionário
-        </Link>
+        {!isReadOnly ? (
+          <Link
+            href={`/merchant/shops/${shopId}/staff/new`}
+            className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+          >
+            Novo funcionário
+          </Link>
+        ) : null}
       </div>
 
       <input
@@ -97,18 +99,20 @@ export function StaffList({ shopId }: { shopId: string }) {
                 href={`/merchant/shops/${shopId}/staff/${member.id}`}
                 className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover"
               >
-                Editar
+                {isReadOnly ? "Ver" : "Editar"}
               </Link>
-              <Button
-                type="button"
-                variant="secondary"
-                className="h-9 w-auto px-3 text-sm"
-                disabled={busy === member.id}
-                loading={busy === member.id}
-                onClick={() => toggleEnabled(member)}
-              >
-                {member.enabled ? "Desativar" : "Ativar"}
-              </Button>
+              {!isReadOnly ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-9 w-auto px-3 text-sm"
+                  disabled={busy === member.id}
+                  loading={busy === member.id}
+                  onClick={() => toggleEnabled(member)}
+                >
+                  {member.enabled ? "Desativar" : "Ativar"}
+                </Button>
+              ) : null}
             </div>
           </div>
         ))}

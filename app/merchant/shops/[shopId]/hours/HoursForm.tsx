@@ -23,7 +23,7 @@ function normalizeDays(days: OpeningHoursDay[]): OpeningHoursDay[] {
   return days.map((d) => ({ ...d, opensAt: toInputTime(d.opensAt), closesAt: toInputTime(d.closesAt) }));
 }
 
-export function HoursForm({ shopId }: { shopId: string }) {
+export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
   const [shopName, setShopName] = useState("Loja");
   const [days, setDays] = useState<OpeningHoursDay[]>(defaultDays());
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -89,6 +89,7 @@ export function HoursForm({ shopId }: { shopId: string }) {
               <input
                 type="checkbox"
                 checked={d.closed}
+                disabled={isReadOnly}
                 onChange={(e) => updateDay(i, { closed: e.target.checked })}
               />
               Fechado
@@ -98,6 +99,7 @@ export function HoursForm({ shopId }: { shopId: string }) {
                 <input
                   type="time"
                   value={d.opensAt ?? ""}
+                  readOnly={isReadOnly}
                   onChange={(e) => updateDay(i, { opensAt: e.target.value })}
                   className="h-10 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
                 />
@@ -105,6 +107,7 @@ export function HoursForm({ shopId }: { shopId: string }) {
                 <input
                   type="time"
                   value={d.closesAt ?? ""}
+                  readOnly={isReadOnly}
                   onChange={(e) => updateDay(i, { closesAt: e.target.value })}
                   className="h-10 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
                 />
@@ -116,9 +119,11 @@ export function HoursForm({ shopId }: { shopId: string }) {
         {saveError ? <p className="text-sm text-red-500">{saveError}</p> : null}
         {saved ? <p className="text-sm text-brand-green">Horário guardado.</p> : null}
 
-        <Button type="submit" loading={saving} className="mt-2 w-auto px-6">
-          Guardar horário
-        </Button>
+        {!isReadOnly ? (
+          <Button type="submit" loading={saving} className="mt-2 w-auto px-6">
+            Guardar horário
+          </Button>
+        ) : null}
       </form>
     </div>
   );

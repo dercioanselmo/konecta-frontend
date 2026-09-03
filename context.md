@@ -52,6 +52,6 @@
 - `MERCHANT_STAFF` users land on `/merchant` — `MerchantShell` now allows both `MERCHANT` and `MERCHANT_STAFF` roles. Staff see the same shop navigation but their `shopId` JWT claim scopes what the Stores-and-Stock service will authorize for them server-side.
 
 ### Needs attention before going live
-- **`MERCHANT_STAFF` backend gap (Stores-and-Stock)**: the Security service correctly embeds `shopId` in the staff JWT, but the Stores-and-Stock service returns `ACCESS_DENIED` for `ROLE_MERCHANT_STAFF` on every shop-scoped endpoint (`GET /merchant/shops/{shopId}`, products, etc.). The frontend shows a stub page for staff logins until the backend implements the authorization check. Once the backend ships it, remove the `MERCHANT_STAFF` early-return in `MerchantShell` and the redirect will work naturally.
 - **Photo URL TTL**: confirm with backend that `POST /api/v1/users/me/photo` (Stores-and-Stock confirm step) returns the permanent S3 object URL, not the presigned GET URL. If it returns the presigned one, profile photos will break after ~1h.
-- **No visual QA yet** — built and verified via typecheck/lint/build only, same as previous features. Worth a click-through with the test accounts.
+- **Staff write actions visible but blocked**: `MERCHANT_STAFF` has read-only access on the backend. The edit/create/stock-adjust buttons are still rendered in the UI — the backend will return `ACCESS_DENIED` if staff try them. Hide those controls for staff in a follow-up if needed.
+- **No visual QA yet** — built and verified via typecheck/lint/build only. Worth a click-through with the test accounts.

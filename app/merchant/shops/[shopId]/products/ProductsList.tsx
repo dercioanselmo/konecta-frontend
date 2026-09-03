@@ -12,7 +12,7 @@ import type { Product } from "@/lib/stores/types";
 
 const PAGE_SIZE = 20;
 
-export function ProductsList({ shopId }: { shopId: string }) {
+export function ProductsList({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
   const [shopName, setShopName] = useState("Loja");
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
@@ -81,12 +81,14 @@ export function ProductsList({ shopId }: { shopId: string }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Produtos</h2>
-        <Link
-          href={`/merchant/shops/${shopId}/products/new`}
-          className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
-        >
-          Novo produto
-        </Link>
+        {!isReadOnly ? (
+          <Link
+            href={`/merchant/shops/${shopId}/products/new`}
+            className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+          >
+            Novo produto
+          </Link>
+        ) : null}
       </div>
 
       <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-end gap-3">
@@ -166,19 +168,21 @@ export function ProductsList({ shopId }: { shopId: string }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={pendingActionId === p.id}
-                        onClick={() => toggleActive(p)}
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
-                      >
-                        {p.active ? "Desativar" : "Ativar"}
-                      </button>
+                      {!isReadOnly ? (
+                        <button
+                          type="button"
+                          disabled={pendingActionId === p.id}
+                          onClick={() => toggleActive(p)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
+                        >
+                          {p.active ? "Desativar" : "Ativar"}
+                        </button>
+                      ) : null}
                       <Link
                         href={`/merchant/shops/${shopId}/products/${p.id}`}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground"
                       >
-                        Editar
+                        {isReadOnly ? "Ver" : "Editar"}
                       </Link>
                     </div>
                   </td>

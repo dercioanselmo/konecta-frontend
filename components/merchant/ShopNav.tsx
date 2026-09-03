@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
-export function ShopNav({ shopId, shopName }: { shopId: string; shopName: string }) {
+export function ShopNav({ shopId, shopName, hideStaff }: { shopId: string; shopName: string; hideStaff?: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -28,12 +30,14 @@ export function ShopNav({ shopId, shopName }: { shopId: string; shopName: string
         >
           Horário
         </Link>
-        <Link
-          href={`/merchant/shops/${shopId}/staff`}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
-        >
-          Funcionários
-        </Link>
+        {!hideStaff ? (
+          <Link
+            href={`/merchant/shops/${shopId}/staff`}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
+          >
+            Funcionários
+          </Link>
+        ) : null}
         <Link
           href={`/merchant/shops/${shopId}/settings`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"

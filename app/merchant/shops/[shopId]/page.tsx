@@ -1,13 +1,14 @@
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { Badge } from "@/components/ui/Badge";
 import { storesApiFetch } from "@/lib/stores/storesApi";
-import { getValidAccessToken } from "@/lib/auth/session";
+import { getValidAccessToken, getCurrentUser } from "@/lib/auth/session";
 import { ApiError } from "@/lib/auth/types";
 import type { DashboardSummary, Shop } from "@/lib/stores/types";
 
 export default async function ShopDashboardPage({ params }: PageProps<"/merchant/shops/[shopId]">) {
   const { shopId } = await params;
-  const accessToken = await getValidAccessToken();
+  const [accessToken, user] = await Promise.all([getValidAccessToken(), getCurrentUser()]);
+  const hideStaff = user?.role === "MERCHANT_STAFF";
 
   let shop: Shop | null = null;
   let summary: DashboardSummary | null = null;
@@ -28,7 +29,7 @@ export default async function ShopDashboardPage({ params }: PageProps<"/merchant
   if (error || !shop) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName="Loja" />
+        <ShopNav shopId={shopId} shopName="Loja" hideStaff={hideStaff} />
         <p className="text-sm text-red-500">{error ?? "Loja não encontrada."}</p>
       </div>
     );
@@ -36,7 +37,7 @@ export default async function ShopDashboardPage({ params }: PageProps<"/merchant
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName={shop.name} />
+      <ShopNav shopId={shopId} shopName={shop.name} hideStaff={hideStaff} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={shop.status === "ACTIVE" ? "success" : shop.status === "DRAFT" ? "warning" : "danger"}>

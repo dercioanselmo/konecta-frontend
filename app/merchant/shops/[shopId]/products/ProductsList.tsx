@@ -12,7 +12,7 @@ import type { Product } from "@/lib/stores/types";
 
 const PAGE_SIZE = 20;
 
-export function ProductsList({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
+export function ProductsList({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
   const [shopName, setShopName] = useState("Loja");
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
@@ -77,18 +77,16 @@ export function ProductsList({ shopId, isReadOnly }: { shopId: string; isReadOnl
 
   return (
     <div className="flex flex-col gap-5">
-      <ShopNav shopId={shopId} shopName={shopName} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Produtos</h2>
-        {!isReadOnly ? (
-          <Link
+                <Link
             href={`/merchant/shops/${shopId}/products/new`}
             className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
           >
             Novo produto
           </Link>
-        ) : null}
       </div>
 
       <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-end gap-3">
@@ -168,8 +166,7 @@ export function ProductsList({ shopId, isReadOnly }: { shopId: string; isReadOnl
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      {!isReadOnly ? (
-                        <button
+                                            <button
                           type="button"
                           disabled={pendingActionId === p.id}
                           onClick={() => toggleActive(p)}
@@ -177,12 +174,11 @@ export function ProductsList({ shopId, isReadOnly }: { shopId: string; isReadOnl
                         >
                           {p.active ? "Desativar" : "Ativar"}
                         </button>
-                      ) : null}
                       <Link
                         href={`/merchant/shops/${shopId}/products/${p.id}`}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground"
                       >
-                        {isReadOnly ? "Ver" : "Editar"}
+                        Editar
                       </Link>
                     </div>
                   </td>

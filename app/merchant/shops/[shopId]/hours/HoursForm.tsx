@@ -23,7 +23,7 @@ function normalizeDays(days: OpeningHoursDay[]): OpeningHoursDay[] {
   return days.map((d) => ({ ...d, opensAt: toInputTime(d.opensAt), closesAt: toInputTime(d.closesAt) }));
 }
 
-export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
+export function HoursForm({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
   const [shopName, setShopName] = useState("Loja");
   const [days, setDays] = useState<OpeningHoursDay[]>(defaultDays());
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName={shopName} />
+        <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );
@@ -79,7 +79,7 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName={shopName} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
 
       <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-3">
         {days.map((d, i) => (
@@ -89,7 +89,6 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
               <input
                 type="checkbox"
                 checked={d.closed}
-                disabled={isReadOnly}
                 onChange={(e) => updateDay(i, { closed: e.target.checked })}
               />
               Fechado
@@ -99,7 +98,6 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
                 <input
                   type="time"
                   value={d.opensAt ?? ""}
-                  readOnly={isReadOnly}
                   onChange={(e) => updateDay(i, { opensAt: e.target.value })}
                   className="h-10 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
                 />
@@ -107,7 +105,6 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
                 <input
                   type="time"
                   value={d.closesAt ?? ""}
-                  readOnly={isReadOnly}
                   onChange={(e) => updateDay(i, { closesAt: e.target.value })}
                   className="h-10 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
                 />
@@ -119,11 +116,9 @@ export function HoursForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
         {saveError ? <p className="text-sm text-red-500">{saveError}</p> : null}
         {saved ? <p className="text-sm text-brand-green">Horário guardado.</p> : null}
 
-        {!isReadOnly ? (
-          <Button type="submit" loading={saving} className="mt-2 w-auto px-6">
+        <Button type="submit" loading={saving} className="mt-2 w-auto px-6">
             Guardar horário
           </Button>
-        ) : null}
       </form>
     </div>
   );

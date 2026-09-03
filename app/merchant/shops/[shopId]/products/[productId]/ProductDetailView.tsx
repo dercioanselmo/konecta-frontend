@@ -31,7 +31,7 @@ import { uploadAndConfirm } from "@/lib/stores/upload";
 import { ClientApiError } from "@/lib/auth/client";
 import type { Category, Photo, Product, Subcategory } from "@/lib/stores/types";
 
-export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: string; productId: string; isReadOnly?: boolean }) {
+export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: string; productId: string; hideStaff?: boolean }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -223,8 +223,7 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
       {actionError ? <p className="text-sm text-red-500">{actionError}</p> : null}
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-surface p-4">
-        {!isReadOnly ? (
-          <form onSubmit={handleStockSubmit(onStockSubmit)} className="flex items-end gap-3">
+        <form onSubmit={handleStockSubmit(onStockSubmit)} className="flex items-end gap-3">
             <Input
               label="Ajustar stock (quantidade absoluta)"
               type="number"
@@ -237,22 +236,16 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
               Atualizar stock
             </Button>
           </form>
-        ) : (
-          <p className="text-sm text-foreground">Stock atual: <span className="font-semibold">{product.stockQuantity}</span></p>
-        )}
         <div className="flex-1" />
-        {!isReadOnly ? (
-          <Button type="button" variant="secondary" className="w-auto px-5" disabled={actionBusy} onClick={toggleActive}>
+        <Button type="button" variant="secondary" className="w-auto px-5" disabled={actionBusy} onClick={toggleActive}>
             {product.active ? "Desativar produto" : "Ativar produto"}
           </Button>
-        ) : null}
       </div>
 
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Fotos</h2>
-          {!isReadOnly ? (
-            <>
+          <>
               <Button
                 type="button"
                 variant="secondary"
@@ -270,7 +263,6 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
                 onChange={handleFileSelected}
               />
             </>
-          ) : null}
         </div>
 
         {photoError ? <p className="text-sm text-red-500">{photoError}</p> : null}
@@ -290,7 +282,7 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
                   ) : null}
                 </div>
                 <div className="flex gap-1">
-                  {!isReadOnly && !photo.isPrimary ? (
+                  {!photo.isPrimary ? (
                     <button
                       type="button"
                       disabled={busyPhotoId === photo.id}
@@ -300,8 +292,7 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
                       Tornar principal
                     </button>
                   ) : null}
-                  {!isReadOnly ? (
-                    <button
+                  <button
                       type="button"
                       disabled={busyPhotoId === photo.id}
                       onClick={() => removePhoto(photo)}
@@ -309,7 +300,6 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
                     >
                       Remover
                     </button>
-                  ) : null}
                 </div>
               </div>
             ))}
@@ -319,17 +309,16 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">Dados do produto</h2>
-        <Input label="Nome" error={errors.name?.message} {...register("name")} readOnly={isReadOnly} />
+        <Input label="Nome" error={errors.name?.message} {...register("name")} />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-foreground">Descrição</span>
           <textarea
             className="min-h-24 w-full rounded-xl border border-border bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-green/60"
-            readOnly={isReadOnly}
             {...register("description")}
           />
         </label>
 
-        <Select label="Categoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isReadOnly}>
+        <Select label="Categoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">Selecione a categoria</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -337,7 +326,7 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
             </option>
           ))}
         </Select>
-        <Select label="Subcategoria" error={errors.subcategoryId?.message} {...register("subcategoryId")} disabled={!categoryId || isReadOnly}>
+        <Select label="Subcategoria" error={errors.subcategoryId?.message} {...register("subcategoryId")} disabled={!categoryId}>
           <option value="">Selecione a subcategoria</option>
           {subcategories.map((s) => (
             <option key={s.id} value={s.id}>
@@ -352,7 +341,6 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
           step="0.01"
           min="0"
           error={errors.price?.message}
-          readOnly={isReadOnly}
           {...register("price", { valueAsNumber: true })}
         />
         <Input
@@ -360,7 +348,6 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
           type="number"
           min="0"
           error={errors.stockQuantity?.message}
-          readOnly={isReadOnly}
           {...register("stockQuantity", { valueAsNumber: true })}
         />
         <Input
@@ -368,15 +355,12 @@ export function ProductDetailView({ shopId, productId, isReadOnly }: { shopId: s
           type="number"
           min="0"
           error={errors.lowStockThreshold?.message}
-          readOnly={isReadOnly}
           {...register("lowStockThreshold", { valueAsNumber: true })}
         />
 
-        {!isReadOnly ? (
-          <Button type="submit" loading={isSubmitting} className="mt-2 w-auto px-6">
+        <Button type="submit" loading={isSubmitting} className="mt-2 w-auto px-6">
             Guardar alterações
           </Button>
-        ) : null}
       </form>
     </div>
   );

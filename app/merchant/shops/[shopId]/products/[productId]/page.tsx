@@ -6,5 +6,5 @@ export default async function ProductDetailPage({
 }: PageProps<"/merchant/shops/[shopId]/products/[productId]">) {
   const { shopId, productId } = await params;
   const user = await getCurrentUser();
-  return <ProductDetailView shopId={shopId} productId={productId} isReadOnly={user?.role === "MERCHANT_STAFF"} />;
+  return <ProductDetailView shopId={shopId} productId={productId} hideStaff={user?.role === "MERCHANT_STAFF"} />;
 }

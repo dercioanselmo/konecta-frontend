@@ -9,7 +9,7 @@ import { listStaff, setStaffEnabled } from "@/lib/merchant/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { UserProfile } from "@/lib/auth/types";
 
-export function StaffList({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
+export function StaffList({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
   const [staff, setStaff] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,18 +49,16 @@ export function StaffList({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" />
+      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Funcionários</h2>
-        {!isReadOnly ? (
-          <Link
+                  <Link
             href={`/merchant/shops/${shopId}/staff/new`}
             className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
           >
             Novo funcionário
           </Link>
-        ) : null}
       </div>
 
       <input
@@ -99,10 +97,9 @@ export function StaffList({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
                 href={`/merchant/shops/${shopId}/staff/${member.id}`}
                 className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover"
               >
-                {isReadOnly ? "Ver" : "Editar"}
+                Editar
               </Link>
-              {!isReadOnly ? (
-                <Button
+              <Button
                   type="button"
                   variant="secondary"
                   className="h-9 w-auto px-3 text-sm"
@@ -112,7 +109,6 @@ export function StaffList({ shopId, isReadOnly }: { shopId: string; isReadOnly?:
                 >
                   {member.enabled ? "Desativar" : "Ativar"}
                 </Button>
-              ) : null}
             </div>
           </div>
         ))}

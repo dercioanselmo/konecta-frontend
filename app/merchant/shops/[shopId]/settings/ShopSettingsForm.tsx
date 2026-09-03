@@ -24,7 +24,7 @@ import { ClientApiError, fetchNeighborhoods } from "@/lib/auth/client";
 import type { Category, Shop } from "@/lib/stores/types";
 import type { Neighborhood } from "@/lib/auth/types";
 
-export function ShopSettingsForm({ shopId, isReadOnly }: { shopId: string; isReadOnly?: boolean }) {
+export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
   const [shop, setShop] = useState<Shop | null>(null);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -144,7 +144,7 @@ export function ShopSettingsForm({ shopId, isReadOnly }: { shopId: string; isRea
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName="Loja" />
+        <ShopNav shopId={shopId} shopName="Loja" hideStaff={hideStaff} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );
@@ -154,18 +154,9 @@ export function ShopSettingsForm({ shopId, isReadOnly }: { shopId: string; isRea
     return <p className="text-sm text-muted">A carregar…</p>;
   }
 
-  if (isReadOnly) {
-    return (
-      <div className="flex flex-col gap-6">
-        <ShopNav shopId={shopId} shopName={shop.name} />
-        <p className="text-sm text-muted">Não tem permissão para editar as definições da loja.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName={shop.name} />
+      <ShopNav shopId={shopId} shopName={shop.name} hideStaff={hideStaff} />
 
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
         <Badge tone={shop.manuallyClosed ? "danger" : "success"}>

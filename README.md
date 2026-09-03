@@ -150,17 +150,24 @@ everything is scoped under `/merchant/shops/[shopId]/...`.
 | `/merchant` | Shop picker — cards per shop (open/closed, low-stock count), link to create a new one. |
 | `/merchant/shops/new` | Create a shop (fiscal fields, categories, bairro). Auto-activates once name/NUIT/address/city/neighborhood are all filled; otherwise stays `DRAFT`. |
 | `/merchant/shops/[shopId]` | Per-shop dashboard: status, open/closed, product counts, low-stock count. |
-| `/merchant/shops/[shopId]/settings` | Fiscal/profile edit, categories, pickup/delivery flags, manual open/pause override. |
+| `/merchant/shops/[shopId]/settings` | Fiscal/profile edit, categories, pickup/delivery flags, manual open/pause override, logo/cover upload. |
 | `/merchant/shops/[shopId]/hours` | Weekly opening-hours editor (replace-all-week `PUT`). |
 | `/merchant/shops/[shopId]/products` | Search/filter (low-stock toggle)/paginate; activate/deactivate inline. |
-| `/merchant/shops/[shopId]/products/new`, `.../products/[productId]` | Create/edit a product — category→subcategory cascading picker, stock adjust (absolute set), image URLs (no upload endpoint — see below). |
+| `/merchant/shops/[shopId]/products/new`, `.../products/[productId]` | Create/edit a product — category→subcategory cascading picker, stock adjust (absolute set). Photo upload is on the detail page only (a product needs an id first). |
+
+**Photo/logo/cover upload** is a real presigned-S3 flow, not a multipart
+endpoint: the BFF hands back `{uploadUrl, key}` from a `.../presign` call,
+the browser `PUT`s the file bytes **directly to S3** (bypassing our server
+entirely — no Authorization header, the URL's signature is the auth), then
+the BFF's confirm endpoint verifies the object landed and returns the
+updated resource. See `lib/stores/upload.ts`'s `uploadAndConfirm()`. Every
+returned photo/logo/cover `url` is a presigned GET that **expires** (~1h)
+— never cache it, re-fetch the parent resource if displaying later.
 
 **Not built — the backend doesn't own these yet**: Orders (merchant-facing
 accept/reject/prepare/ready/pickup-QR), Sales summary, Receipts
-("Recebimentos por transação"), and product **photo upload** (no
-multipart endpoint exists — `imageUrls`/`primaryImageUrl` are plain string
-fields the merchant pastes URLs into). Don't build UI for these until told
-a backend for them exists.
+("Recebimentos por transação"). Don't build UI for these until told a
+backend for them exists.
 
 ### Admin dashboard — User management
 
@@ -289,12 +296,6 @@ See [`.env.example`](./.env.example). Key ones:
 
 ## Known gaps / needs attention
 
-- **No ADMIN account exists to test the admin flows live.** Self-registration
-  always creates a `CUSTOMER`; promoting to `ADMIN` needs an *existing*
-  admin token. Someone needs to seed the first admin on the backend side.
-  Everything Admin-specific (list/create/edit/role/enable/approve/reject)
-  has been verified for correct request shape and error handling, but not
-  actually exercised end-to-end with a real admin session.
 - **`/set-password`'s query-param shape is an assumption** — confirm the
   admin-invite email actually links to `?email=...&code=...` and adjust
   `app/set-password/page.tsx` if the real link is shaped differently.
@@ -306,14 +307,18 @@ See [`.env.example`](./.env.example). Key ones:
 - Courier is a login-only stub; no dashboard yet.
 - Admin dashboard has no Orders ops or Transactions/commissions monitoring
   yet (out of scope for the current feature slice).
-- Merchant dashboard has no Orders, Sales summary, Receipts, or product
-  photo upload — the Stores-and-Stock service explicitly doesn't own those
-  (see `API_REFERENCE_MERCHANT_DASHBOARD.md`'s "What's not here"). Don't
-  build UI for them until told a backend exists.
+- Merchant dashboard has no Orders, Sales summary, or Receipts — the
+  Stores-and-Stock service explicitly doesn't own those (see
+  `API_REFERENCE_MERCHANT_DASHBOARD.md`'s "What's not here"). Don't build
+  UI for them until told a backend exists.
 - One `PATCH /merchant/shops/{shopId}` call returned a raw, non-standard
   `500 {"message":""}` once during live testing — not reproducible on
   retry (identical request succeeded immediately after). Likely a
   transient backend hiccup; noted in `context.md` in case it recurs.
+
+Both Admin and Merchant have now been exercised live end-to-end with real
+credentials for every role (Customer, Merchant, Admin) — see `context.md`
+for the specific actions verified in the most recent session.
 
 ---
 

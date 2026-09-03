@@ -8,6 +8,93 @@
 
 ---
 
+## Next up — awaiting backend, specs written, nothing built yet
+
+User asked for three things in one message: (1) shop category badge
+visible on both the per-shop dashboard and the `/merchant` shop-picker
+(currently only visible in shop settings), (2) a new `MERCHANT_STAFF`
+role — a merchant CRUDs employee accounts scoped to one shop, merchant
+sets their password directly, forced password-change on first login,
+(3) a self-service "my profile" screen for every role (edit details,
+change password, upload profile photo). **Nothing here is built yet** —
+two rounds of doc-only work so far, no frontend code written, no backend
+implemented. Don't assume any of this exists; check both docs' "PROPOSED"
+markers before touching it.
+
+### Architecture decision: one S3 gateway, not two
+
+User's explicit call: **no duplicated S3-integration code.** The
+Stores-and-Stock service is, for now, the *only* service that talks to
+S3 directly — even for user profile photos, which aren't really its
+domain. It already grew a "User profile photo" section (presign + confirm,
+same pattern as product/shop photos) — deliberately **not** duplicated on
+the Auth/Security service. This is explicitly temporary: a dedicated
+media/S3 service is planned later, at which point both the Stores service
+and (whenever it needs an upload) the Security service would presumably
+call *that* instead of either owning S3 credentials themselves. Don't
+"fix" this apparent domain mismatch by adding upload endpoints to the
+Security service — that's the one thing this decision rules out.
+
+**The resulting profile-photo flow spans two services**: frontend calls
+Stores-and-Stock's presign → `PUT` straight to S3 → Stores-and-Stock's
+confirm (returns a presigned GET URL) → frontend then calls
+`PATCH /api/v1/users/me` on the Security service with that URL to actually
+persist it on the profile (once that service adds a `photoUrl` field —
+proposed, not live). Security service never touches S3 for this at all,
+it just remembers a string.
+
+**Open question flagged in the doc, not yet answered**: Stores-and-Stock's
+confirm step returns a presigned GET URL that **expires (~1h)**. If the
+Security service naively stores that directly in `photoUrl`, profile
+photos go stale/broken after an hour. Needs resolving before
+implementation — either store the stable S3 `key` and re-presign on every
+read, or a different strategy entirely. Don't build the profile-photo
+save flow until this is answered.
+
+### What's proposed where (both docs updated, both still "PROPOSED", nothing live)
+
+- **`API_REFERENCE_MERCHANT_DASHBOARD.md`** — "User profile photo" section
+  (Stores-and-Stock side): presign/confirm endpoints, any authenticated
+  role can call them (not `MERCHANT`-only), explicitly does not persist
+  anything — S3 plumbing only.
+- **`API_REFERENCE-security-service.md`** — "PROPOSED" section (Auth side):
+  `MERCHANT_STAFF` role, merchant-scoped staff CRUD (`/merchant/staff`),
+  `mustChangePassword` + `POST /auth/change-password`, and now a
+  corrected "Profile photo" subsection that just adds `photoUrl` to
+  `UserProfileResponse`/`PATCH /users/me` — no upload endpoints here, see
+  architecture decision above.
+
+Worth knowing before implementing:
+- Item (1) has two different fixes: the per-shop dashboard just needs
+  `shop.categories` rendered (data's already fetched there, trivial) — but
+  the `/merchant` picker uses `ShopSummary` (`GET /merchant/shops`), which
+  does **not** include `categories` at all. That's a Stores-and-Stock gap,
+  not a security-service one — would need a doc update to
+  `API_REFERENCE_MERCHANT_DASHBOARD.md` too (not requested yet).
+- Item (2)'s design has a real cross-service question baked into the
+  proposal: the Security service has no concept of shops, so shop-ownership
+  verification for staff creation is assumed to happen in the frontend
+  BFF (call Stores-and-Stock's `GET /merchant/shops/{shopId}` first,
+  which already 404s for a non-owner) before ever calling the new
+  merchant-staff-create endpoint. Staff-management *authorization*
+  (list/edit/enable your own staff) is by `ownerId`, not shop ownership —
+  doesn't need Stores-and-Stock at all for that part. Also proposed
+  embedding `shopId` in the staff member's JWT claims so Stores-and-Stock
+  can authorize their shop-scoped requests without calling back to
+  Security — that's a Stores-and-Stock-side change too, only flagged, not
+  spec'd there yet.
+- The `mustChangePassword` gate should reuse the existing
+  `isProfileComplete`/`/complete-profile` gate pattern
+  (`lib/auth/profile.ts`, checked in `RoleLanding`/`AdminShell`/
+  `MerchantShell`) — same shape of problem, same fix.
+- When this actually gets built, the frontend upload orchestration should
+  reuse `lib/stores/upload.ts`'s `uploadAndConfirm()` as-is for the
+  profile-photo presign/PUT/confirm leg (it's already generic — presign
+  fn + confirm fn, doesn't care what resource it's for), then a separate
+  call to the Security service's `PATCH /users/me` to save the result.
+
+---
+
 ## Current feature: Merchant dashboard
 
 **Scope (per `AGENTS.md` §6, Merchant Phase 1):** dashboard (shops overview,

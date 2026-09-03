@@ -334,6 +334,42 @@ windows (e.g. `21:00`→`02:00`).
 
 ---
 
+### `PATCH /api/v1/merchant/shops/{shopId}/location` — GPS coordinates
+
+**Implemented** (dedicated endpoint, matching `.../hours`). `MERCHANT`
+(owner) or `ADMIN` (any shop); `MERCHANT_STAFF` → `403`.
+
+**Request body** — both fields required together:
+
+```json
+{ "latitude": -25.9692, "longitude": 32.5732 }
+```
+
+**Response `200 OK`** — the updated `Shop`, now including `latitude`/
+`longitude` (also present on plain `GET`, `null` until set).
+
+**Errors**: `400 VALIDATION_ERROR` if outside a generous Maputo-area
+bounding box (`lat -26.3..-25.7`, `lon 32.3..32.8` — covers Matola/KaTembe
+too, a sanity check rather than precise city limits).
+
+A missing location does **not** block `activationReady` — a shop can go
+`ACTIVE` without ever setting one. Flag: once proximity-based search
+ships (Phase 1 customer Home/Search), a shop with no location won't be
+findable there — worth revisiting whether it should gate activation at
+that point.
+
+**Frontend**: new "Localização" tab in `ShopNav` (after "Definições"),
+built with **Leaflet + OpenStreetMap** (not Google Maps — switched by
+request, avoids any Cloud billing/API-key setup). Click-to-place or
+drag the pin; address search and reverse-geocode confirmation both go
+through Nominatim (OSM's free geocoder), proxied via `app/api/geo/search`
+and `app/api/geo/reverse` so the browser never calls Nominatim directly
+(keeps its usage-policy-required identifying `User-Agent` and rate
+control server-side). Available to both Merchant and Admin via the
+same `basePath` pattern as every other shop tab.
+
+---
+
 ## 2. Products & stock
 
 All under `/api/v1/merchant/shops/{shopId}/products`.

@@ -51,8 +51,15 @@ export interface Shop {
   activationReady: boolean;
   acceptsPickup: boolean;
   acceptsDelivery: boolean;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SetShopLocationPayload {
+  latitude: number;
+  longitude: number;
 }
 
 export interface CreateShopPayload {

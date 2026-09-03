@@ -62,6 +62,12 @@ export function ShopNav({
         >
           Definições
         </Link>
+        <Link
+          href={`${basePath}/${shopId}/location`}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
+        >
+          Localização
+        </Link>
       </nav>
     </div>
   );

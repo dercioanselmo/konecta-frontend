@@ -15,6 +15,7 @@ import type {
   PresignResponse,
   Product,
   ProductsQuery,
+  SetShopLocationPayload,
   SetShopStatusPayload,
   Shop,
   ShopSummary,
@@ -57,6 +58,13 @@ export function updateShop(shopId: string, payload: UpdateShopPayload): Promise<
 
 export function setShopStatus(shopId: string, payload: SetShopStatusPayload): Promise<Shop> {
   return request(`/api/merchant/shops/${shopId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setShopLocation(shopId: string, payload: SetShopLocationPayload): Promise<Shop> {
+  return request(`/api/merchant/shops/${shopId}/location`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

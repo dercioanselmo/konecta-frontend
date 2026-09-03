@@ -265,3 +265,110 @@ wasn't done — this session only chased the two symptoms actually reported.
 - `app/admin/page.tsx` — added a second `Link` card ("Lojas" → `/admin/shops`) below the existing "Utilizadores" one, same visual pattern (title + subtitle + count pill). Fetches `GET /api/v1/admin/shops?page=0&size=1` via `storesApiFetch` for `totalElements`, shown as an "N loja(s)" pill (brand-green, vs. the orange "pendente(s)" pill on Utilizadores since there's no urgency state for shops — just a count). Fails soft to no badge if the call errors, same pattern as the existing pending-count fetch.
 - **Live-verified end-to-end** through the actual running Next app (not just direct backend curl): logged in via `POST /api/auth/login` on `localhost:3000` (real session cookie), fetched `/admin` — rendered HTML confirms both cards present, "Lojas" card shows "2 lojas" pill and links to `/admin/shops`, matching the real backend's 2 seeded shops. Also independently verified `GET /api/admin/shops` (the BFF route) through the same session cookie returns the same 2 real shops.
 - `tsc --noEmit` and `eslint` both clean on the changed file.
+
+## Round 7: Admin shop-list row click + confirmed user-photo TTL bug (2026-09-03)
+
+**1. Admin couldn't enter a shop by clicking it in `/admin/shops`.** All my
+earlier live curl checks (Round 5b) only exercised SSR HTML + BFF routes
+directly, which all worked — but curl doesn't execute client-side JS, so
+it couldn't catch a real in-browser click-navigation failure. Rather than
+keep guessing blind, hardened the click target: `app/admin/shops/page.tsx`
+now makes the **entire `<tr>`** clickable via `useRouter().push()` (with
+`cursor-pointer`/hover styling), not just the shop-name `<Link>` text —
+the `Link` stays (for accessibility/open-in-new-tab) with `stopPropagation`
+so the two handlers don't double-navigate. `tsc`/`eslint` clean.
+
+**2. Confirmed: user profile-photo URLs go dead ~1h after upload —
+reproduced live, root cause found, not a frontend bug.** User reported the
+top-right avatar had stopped resizing into its box — investigated by
+auditing every `next/image` usage in the app (all correctly use
+`relative <sized>` + `fill` + `object-cover`, compiled CSS confirmed
+correct) before concluding the *markup* wasn't the problem. Then compared
+`photoUrl` across two `GET /api/auth/me` calls ~2h apart (via a fresh
+re-login each time): **identical byte-for-byte**, same `X-Amz-Date` query
+param both times. Fetching that URL directly from S3 confirmed
+`403 AccessDenied: Request has expired` (`Expires: 2026-09-03T17:35:36Z`,
+`ServerTime: 2026-09-03T18:28:42Z`). A broken image doesn't crop/size the
+way object-cover does, which is what read as a "resizing" regression.
+- **Root cause**: KONECTA-SECURITY-SERVICE stores `photoUrl` as a static
+  string, written once at upload time, and returns it verbatim on every
+  `GET /users/me` — it was already a presigned S3 GET URL (1h TTL) at
+  write time, per the Stores-and-Stock confirm step's documented
+  behavior, and nothing ever refreshes it after that.
+- **Confirmed this does NOT affect shop logos/covers or product
+  photos** — those come back with a fresh `X-Amz-Date` on every `GET`
+  (verified: two `GET /api/v1/admin/shops` calls minutes apart had
+  different signatures), because Stores-and-Stock re-presigns on every
+  read of the live shop/product record. User photos are different: the
+  Security service has no S3 client and no "refresh on read" step, it
+  just echoes back whatever string was last saved.
+- Documented the confirmed bug + two viable fixes (store the S3 key and
+  proxy a fresh presign per read, or serve user photos from a public/
+  unsigned path since they're not sensitive) in
+  `API_REFERENCE-security-service.md`'s Profile Photo section. Nothing
+  to change on the frontend — it already renders whatever `photoUrl` it's
+  given; the fix is entirely about which URL gets stored/returned.
+
+## Round 8: Admin owner-name resolution + Funcionários tab (2026-09-03)
+
+**1. `Proprietário` column showed a raw UUID instead of the owner's
+name.** Known/documented gap: Stores-and-Stock's `GET /admin/shops` has
+no client to the Security service, so `ownerName`/`ownerEmail` are
+always `null`. Rather than wait on that backend work, resolved it
+client-side: `app/admin/shops/page.tsx` now calls the existing
+`getUser(id)` admin endpoint (already live, Security-service-backed) once
+per **unique** `ownerId` missing a name, via `Promise.allSettled` so one
+failed lookup doesn't break the others, cached in state so it only
+happens once per owner per page load. Falls back to the raw `ownerId`
+(as before) only if that specific lookup 404s. **Live-verified**: of the
+2 real seeded shops, one resolved to a real name ("Natacha Anselmo"),
+the other correctly fell back to its raw `ownerId` — that shop's
+`ownerId` (`f94fbcbb-...`) turned out to be a real `404 USER_NOT_FOUND`
+on the Security service (an orphaned/inconsistent test-data row, not a
+frontend bug), which is exactly the fallback path being exercised
+correctly.
+
+**2. "Funcionários" wasn't reachable from the Admin's shop view** — the
+Round 4 build deliberately hid it (`hideStaff` always on for admin
+routes), a scope call I made unilaterally that the user has now
+overridden: staff should be visible/manageable by Admin too, matching
+"same access as Store Admin." Reversed it:
+- `StaffList`, `NewStaffForm`, `StaffDetailView` (under
+  `app/merchant/shops/[shopId]/staff/**`) gained the same
+  `basePath`/`listHref`/`listLabel` props as every other shop-scoped
+  component (Round 4's pattern), defaults unchanged for existing
+  Merchant callers.
+- Dropped `hideStaff` from all `app/admin/shops/[shopId]/**` pages so
+  the "Funcionários" tab now renders in `ShopNav` for Admin.
+- New `app/admin/shops/[shopId]/staff/page.tsx` and
+  `.../staff/[staffId]/page.tsx`, reusing the Merchant components with
+  `basePath="/admin/shops"`.
+- **Staff *creation* deliberately excluded for Admin** (new `allowCreate`
+  prop on `StaffList`, `false` for the admin variant, and no
+  `/admin/shops/[shopId]/staff/new` route built) — mirrors the existing
+  precedent of shop-creation staying Merchant-only, since "whose staff is
+  it?" is a genuine ownership question for an Admin-created account, not
+  addressed here.
+- **Confirmed live** (real `ROLE_ADMIN` JWT): `GET /merchant/staff` still
+  `403`s for Admin — same class of gap as the shops endpoints had before
+  their fix, but staff needs a different shape of fix since it's scoped
+  by `jwt.sub` with `shopId` as only an optional filter, not a path
+  segment checked against an owner. Documented the required backend
+  change (list: require+scope-by `shopId` for Admin instead of `jwt.sub`;
+  detail/edit/enable: bypass the ownership check for `ROLE_ADMIN`, same
+  pattern as the shops fix; create: stays Merchant-only) as a new
+  PROPOSED section in `API_REFERENCE-security-service.md`.
+- Frontend fully built, `tsc`/`eslint`/`build` all clean, and
+  live-verified via the real running app: the "Funcionários" tab now
+  renders on `/admin/shops/{shopId}`, the list page renders with the
+  "Novo funcionário" button correctly hidden, and the underlying data
+  call still `403`s exactly as documented (frontend shows the existing
+  error state gracefully) until backend ships the fix above.
+
+## Round 8b: Merchant-staff admin access — CLOSED, live-verified 2026-09-03/04
+
+- Backend implemented exactly the proposed shape: `GET /merchant/staff` now requires `shopId` for `ROLE_ADMIN` (`400 SHOP_ID_REQUIRED` if missing, matches by shop instead of `jwt.sub`), `GET/PATCH .../staff/{id}` and `PATCH .../staff/{id}/enabled` bypass the ownership check for `ROLE_ADMIN`, `POST` (create) stays `MERCHANT`-only on purpose. New `MerchantStaffAdminAccessIntegrationTest`, suite 18/18 green.
+- **First test attempt failed** (`403` on everything) — same root cause as Round 5b: a stale `:8091` process (`ps` showed it started hours before the fix would've been compiled in). Flagged it, backend restarted the service, retested clean.
+- **Live-verified with a real ADMIN JWT** after restart, all cases from backend's own report reproduced independently: `GET` no `shopId` → `400 SHOP_ID_REQUIRED`; `GET ?shopId=...` → `200` with real staff (found 3 real seeded staff on "Loja Teste E2E 2"); `GET/PATCH` by a specific staff `id` → `200`, edit persisted (left a harmless test edit on one staff's `address`); `PATCH .../enabled` → `200`, toggled off then back on; `POST` (create) → still `403` as intended.
+- Also verified through the **actual running Next app** (not just direct backend curl): logged in for a real session, hit `/api/merchant/staff?shopId=...` through the app's own BFF route — returned the same 3 real staff, confirming the whole chain (browser → BFF → Security service) works, not just the backend in isolation.
+- **Feature is fully closed.** Admin now has full parity with Store Admin across shops, products, hours, settings, and staff (view/edit/enable, not create) — everything from Round 4 through here is live-verified end to end.

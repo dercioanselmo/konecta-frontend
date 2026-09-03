@@ -13,7 +13,21 @@ import { fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
 import { editProfileSchema, type EditProfileFormValues } from "@/lib/auth/validation";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
 
-export function StaffDetailView({ shopId, staffId }: { shopId: string; staffId: string }) {
+interface StaffDetailViewProps {
+  shopId: string;
+  staffId: string;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function StaffDetailView({
+  shopId,
+  staffId,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: StaffDetailViewProps) {
   const [member, setMember] = useState<UserProfile | null>(null);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -88,7 +102,7 @@ export function StaffDetailView({ shopId, staffId }: { shopId: string; staffId: 
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName="" />
+        <ShopNav shopId={shopId} shopName="" basePath={basePath} listHref={listHref} listLabel={listLabel} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );

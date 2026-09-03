@@ -5,7 +5,6 @@ export default async function AdminShopSettingsPage({ params }: PageProps<"/admi
   return (
     <ShopSettingsForm
       shopId={shopId}
-      hideStaff
       basePath="/admin/shops"
       listHref="/admin/shops"
       listLabel="Lojas"

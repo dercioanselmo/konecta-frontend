@@ -9,7 +9,24 @@ import { listStaff, setStaffEnabled } from "@/lib/merchant/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { UserProfile } from "@/lib/auth/types";
 
-export function StaffList({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
+interface StaffListProps {
+  shopId: string;
+  hideStaff?: boolean;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+  /** Creating staff raises an ownership question for an Admin caller — hide the action there. */
+  allowCreate?: boolean;
+}
+
+export function StaffList({
+  shopId,
+  hideStaff,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+  allowCreate = true,
+}: StaffListProps) {
   const [staff, setStaff] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,16 +66,25 @@ export function StaffList({ shopId, hideStaff }: { shopId: string; hideStaff?: b
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} />
+      <ShopNav
+        shopId={shopId}
+        shopName=""
+        hideStaff={hideStaff}
+        basePath={basePath}
+        listHref={listHref}
+        listLabel={listLabel}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Funcionários</h2>
-                  <Link
-            href={`/merchant/shops/${shopId}/staff/new`}
+        {allowCreate ? (
+          <Link
+            href={`${basePath}/${shopId}/staff/new`}
             className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
           >
             Novo funcionário
           </Link>
+        ) : null}
       </div>
 
       <input
@@ -94,7 +120,7 @@ export function StaffList({ shopId, hideStaff }: { shopId: string; hideStaff?: b
                 <Badge tone="warning">Deve alterar senha</Badge>
               ) : null}
               <Link
-                href={`/merchant/shops/${shopId}/staff/${member.id}`}
+                href={`${basePath}/${shopId}/staff/${member.id}`}
                 className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover"
               >
                 Editar

@@ -327,6 +327,54 @@ This service stores the photo URL only — it does **not** talk to S3.
 
 > The URL stored in `photoUrl` should be the stable object URL, not a presigned GET URL (those expire in ~1 hour). Coordinate with whoever builds the Stores-and-Stock confirm step to ensure it returns the permanent URL, not the presigned one.
 
+### CONFIRMED BUG — `photoUrl` is a dead presigned URL after ~1h (2026-09-03)
+
+The risk flagged above has materialized. **Live-verified 2026-09-03**:
+called `GET /api/v1/auth/me` (via the frontend, real session) twice —
+once, then again after a fresh re-login roughly two hours later. Both
+times it returned the **exact same** `photoUrl`, byte-for-byte, including
+the same `X-Amz-Date=20260903T163536Z` query param — i.e. this service is
+returning the presigned URL it was handed at upload time, verbatim,
+forever, not a freshly-generated one. Fetching that URL directly from S3
+now returns:
+
+```xml
+<Error><Code>AccessDenied</Code><Message>Request has expired</Message>
+<X-Amz-Expires>3600</X-Amz-Expires><Expires>2026-09-03T17:35:36Z</Expires>
+<ServerTime>2026-09-03T18:28:42Z</ServerTime></Error>
+```
+
+**User-visible symptom**: every avatar in the app (top-right header menu,
+`/profile` page) shows a broken image once ~1h has passed since the photo
+was last uploaded — permanently, since nothing ever refreshes it.
+
+**Confirmed NOT an issue for shop logos/covers or product photos** — those
+come back with a fresh `X-Amz-Date` on every single `GET`, verified live
+by comparing two `GET /api/v1/admin/shops` calls minutes apart (different
+signatures each time). Stores-and-Stock re-presigns those on every read
+because the shop/product record is fetched live each time. The Security
+service's `photoUrl` field is different: it's a plain string column on
+the user, only ever written once (at upload/save time), and read back
+as-is on every `GET /users/me` — there's no "fetch live from S3/Stores"
+step to refresh it.
+
+**Two ways to actually fix this** (either works, first is simpler):
+
+1. **Store the S3 key, not the presigned URL**, and have this service
+   ask Stores-and-Stock for a fresh presigned GET on every `GET /users/me`
+   (Stores-and-Stock already does exactly this for shops/products — same
+   pattern, just needs an endpoint this service can call by key, or make
+   user photos public/unsigned since a profile photo isn't sensitive).
+2. **Serve user photos from a public (unsigned, non-expiring) S3
+   path/CDN URL** instead of a presigned one — appropriate here since,
+   unlike fiscal documents, a profile photo has no confidentiality
+   requirement. Simplest fix if S3 bucket policy allows a public prefix
+   for `users/**`.
+
+Frontend has nothing to change here — it already stores and renders
+whatever `photoUrl` it's given; the fix is entirely on which URL gets
+stored and how it's kept fresh.
+
 ---
 
 ## Role upgrade requests
@@ -504,6 +552,68 @@ Requires `ROLE_MERCHANT` — a non-merchant token gets a 403 `ACCESS_DENIED`.
 All endpoints are scoped to the calling merchant's own staff — you can only see and manage accounts you created. A request for a staff id that belongs to a different merchant returns `404 USER_NOT_FOUND` (not 403 — don't confirm existence to non-owners).
 
 > **`shopId` trust model:** this service stores `shopId` as an opaque UUID — it does **not** verify that the calling merchant actually owns that shop. The frontend must verify shop ownership against the Stores-and-Stock service before calling these endpoints. Authorization for list/get/edit/enable is by `ownerId == jwt.sub`, which this service enforces directly.
+
+### RESOLVED — Admin access to a shop's staff
+
+**Done, live-verified 2026-09-04** with a real `ROLE_ADMIN` JWT, exactly
+as proposed below: `GET /merchant/staff` requires `shopId` for Admin
+(`400 SHOP_ID_REQUIRED` if omitted, matches by shop not `jwt.sub`);
+`GET`/`PATCH /merchant/staff/{id}` and `PATCH .../enabled` bypass the
+ownership check for Admin; `POST` (create) correctly still `403`s for
+Admin. Verified against 3 real seeded staff on a real shop, including a
+persisted `PATCH` and an enable/disable round-trip, and independently
+through the actual running frontend app's own BFF route (not just direct
+backend calls). Covered by `MerchantStaffAdminAccessIntegrationTest`,
+18/18 suite green. Leaving the original proposal below for reference.
+
+**Ask**: the Admin "Lojas" section (see `API_REFERENCE_MERCHANT_DASHBOARD.md`'s
+now-RESOLVED Admin-access section) gives an Admin the same shop-management
+capabilities as the shop's own `MERCHANT` — that now includes a
+"Funcionários" tab, wired identically to the Merchant one, reusing the
+exact same `StaffList`/`NewStaffForm`/`StaffDetailView` components.
+
+**Confirmed live** (real `ROLE_ADMIN` JWT, 2026-09-03):
+`GET /api/v1/merchant/staff?shopId={realShopId}` returns
+`403 ACCESS_DENIED` for Admin — this endpoint group is still gated to
+`ROLE_MERCHANT` only, same class of gap as the shops endpoints were
+before that fix.
+
+**Why this one's a bit different from the shops fix**: shops/products are
+scoped by `{shopId}` in the path and checked against `shop.ownerId`, so
+"bypass the ownership check for `ROLE_ADMIN`" was a clean, local change.
+Staff has no `{shopId}` path segment at all — `GET /merchant/staff` is a
+flat list scoped by `ownerId == jwt.sub`, with `shopId` only as an
+**optional filter** on top of that scope (see the `shopId` trust-model
+note above). For an Admin, `jwt.sub` isn't a merchant's id at all, so
+"scope by `jwt.sub`" doesn't degrade gracefully to "scope by nothing" —
+it needs an explicit different rule for the Admin case.
+
+**What's needed**, mirroring the shops fix's shape:
+
+- `GET /api/v1/merchant/staff`: when the caller is `ROLE_ADMIN`, **do
+  not** scope by `jwt.sub` at all. Instead **require** the `shopId` query
+  param (400 if missing for an Admin caller) and scope by that instead —
+  i.e. return every `MERCHANT_STAFF` whose stored `shopId` matches,
+  regardless of who created them. `ROLE_MERCHANT` behavior is unchanged
+  (scoped by `jwt.sub`, `shopId` still optional there).
+- `GET /api/v1/merchant/staff/{id}`, `PATCH .../{id}`,
+  `PATCH .../{id}/enabled`: widen the `ownerId == jwt.sub` check to also
+  accept `ROLE_ADMIN` unconditionally (bypass, not compare) — same
+  pattern as the shops fix, no `shopId` needed since these are already
+  scoped by a specific staff `id`.
+- `POST /api/v1/merchant/staff` (create): **leave `ROLE_MERCHANT`-only**,
+  same reasoning as shop creation staying merchant-only — an Admin
+  creating a staff account raises an ownership question (whose staff is
+  it?) that's out of scope here. Not requested; the frontend's admin
+  "Funcionários" tab only needs list/view/edit/enable-toggle to reach
+  parity, matching how shop-creation was intentionally left out of the
+  earlier shops fix too.
+
+**Frontend status**: fully built and wired (`/admin/shops/{shopId}/staff`
+list, `/admin/shops/{shopId}/staff/{staffId}` edit — reusing the exact
+same components as Merchant, minus the "new" flow which still only links
+from the Merchant side). Will `403` on list until the above ships;
+nothing further needed on the frontend once it does.
 
 ### `GET /api/v1/merchant/staff` — Merchant
 

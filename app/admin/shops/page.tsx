@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { listAllShops } from "@/lib/stores/client";
+import { getUser } from "@/lib/admin/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { AdminShopSummary, ShopStatus } from "@/lib/stores/types";
+import type { AdminUser } from "@/lib/admin/types";
 
 const PAGE_SIZE = 20;
 const STATUSES: ShopStatus[] = ["DRAFT", "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "CLOSED"];
@@ -20,6 +23,7 @@ function statusTone(status: ShopStatus) {
 }
 
 export default function AdminShopsPage() {
+  const router = useRouter();
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<ShopStatus | "">("");
@@ -29,6 +33,11 @@ export default function AdminShopsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The Stores-and-Stock service doesn't yet resolve ownerName/ownerEmail
+  // (no client to the Security service on its side) — resolve them here
+  // instead, one lookup per unique owner, via the admin user-lookup
+  // endpoint we already have. `null` = looked up, not found/failed.
+  const [ownerCache, setOwnerCache] = useState<Record<string, AdminUser | null>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +64,23 @@ export default function AdminShopsPage() {
       load();
     });
   }, [load]);
+
+  useEffect(() => {
+    const idsNeedingLookup = shops.filter((s) => !s.ownerName).map((s) => s.ownerId);
+    const missing = Array.from(new Set(idsNeedingLookup)).filter((id) => !(id in ownerCache));
+    if (missing.length === 0) return;
+    queueMicrotask(() => {
+      Promise.allSettled(missing.map((id) => getUser(id))).then((results) => {
+        setOwnerCache((prev) => {
+          const next = { ...prev };
+          results.forEach((r, i) => {
+            next[missing[i]] = r.status === "fulfilled" ? r.value : null;
+          });
+          return next;
+        });
+      });
+    });
+  }, [shops, ownerCache]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,32 +147,47 @@ export default function AdminShopsPage() {
                 </td>
               </tr>
             ) : (
-              shops.map((s) => (
-                <tr key={s.id}>
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/shops/${s.id}`} className="font-medium text-foreground hover:underline">
-                      {s.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-muted">
-                    {s.ownerName ? (
-                      <>
-                        {s.ownerName} {s.ownerEmail ? <span className="text-xs">({s.ownerEmail})</span> : null}
-                      </>
-                    ) : (
-                      <span className="font-mono text-xs" title="Dados do proprietário indisponíveis">
-                        {s.ownerId}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={statusTone(s.status)}>{s.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={s.isOpen ? "success" : "neutral"}>{s.isOpen ? "Aberta" : "Fechada"}</Badge>
-                  </td>
-                </tr>
-              ))
+              shops.map((s) => {
+                const resolvedOwner = ownerCache[s.ownerId];
+                const ownerName = s.ownerName ?? (resolvedOwner ? `${resolvedOwner.firstName} ${resolvedOwner.lastName}` : null);
+                const ownerEmail = s.ownerEmail ?? resolvedOwner?.email ?? null;
+                return (
+                  <tr
+                    key={s.id}
+                    className="cursor-pointer hover:bg-surface"
+                    onClick={() => router.push(`/admin/shops/${s.id}`)}
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/shops/${s.id}`}
+                        className="font-medium text-foreground hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {s.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      {ownerName ? (
+                        <>
+                          {ownerName} {ownerEmail ? <span className="text-xs">({ownerEmail})</span> : null}
+                        </>
+                      ) : s.ownerId in ownerCache ? (
+                        <span className="font-mono text-xs" title="Dados do proprietário indisponíveis">
+                          {s.ownerId}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted">A carregar…</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={s.isOpen ? "success" : "neutral"}>{s.isOpen ? "Aberta" : "Fechada"}</Badge>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

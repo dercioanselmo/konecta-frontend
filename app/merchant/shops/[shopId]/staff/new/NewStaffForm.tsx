@@ -33,7 +33,19 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-export function NewStaffForm({ shopId }: { shopId: string }) {
+interface NewStaffFormProps {
+  shopId: string;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function NewStaffForm({
+  shopId,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: NewStaffFormProps) {
   const router = useRouter();
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -65,7 +77,7 @@ export function NewStaffForm({ shopId }: { shopId: string }) {
         neighborhood: values.neighborhood,
         shopId,
       });
-      router.push(`/merchant/shops/${shopId}/staff`);
+      router.push(`${basePath}/${shopId}/staff`);
     } catch (error) {
       setFormError(
         error instanceof ClientApiError
@@ -77,7 +89,7 @@ export function NewStaffForm({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" />
+      <ShopNav shopId={shopId} shopName="" basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4">
         <h2 className="text-xl font-bold text-foreground">Novo funcionário</h2>

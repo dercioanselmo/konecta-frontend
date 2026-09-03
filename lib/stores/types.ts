@@ -1,0 +1,172 @@
+// Types for the KONECTA Stores-and-Stock microservice.
+// See API_REFERENCE_MERCHANT_DASHBOARD.md for the full live contract.
+
+export type ShopStatus = "DRAFT" | "PENDING_REVIEW" | "ACTIVE" | "SUSPENDED" | "CLOSED";
+
+export interface Category {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface Subcategory {
+  id: string;
+  categoryId: string;
+  categoryCode: string;
+  categoryName: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+/** Lightweight card shown on the shop picker — GET /merchant/shops. */
+export interface ShopSummary {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  isOpen: boolean;
+  lowStockCount: number;
+}
+
+export interface Shop {
+  id: string;
+  name: string;
+  legalName: string | null;
+  nuit: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  categories: Category[];
+  description: string | null;
+  logoUrl: string | null;
+  coverUrl: string | null;
+  status: ShopStatus;
+  isOpen: boolean;
+  manuallyClosed: boolean;
+  activationReady: boolean;
+  acceptsPickup: boolean;
+  acceptsDelivery: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateShopPayload {
+  name: string;
+  nuit?: string;
+  address?: string;
+  city?: string;
+  neighborhood?: string;
+  phone?: string;
+  categoryIds?: string[];
+  description?: string;
+}
+
+export interface UpdateShopPayload {
+  name?: string;
+  nuit?: string;
+  address?: string;
+  city?: string;
+  neighborhood?: string;
+  phone?: string;
+  categoryIds?: string[];
+  description?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  acceptsPickup?: boolean;
+  acceptsDelivery?: boolean;
+}
+
+export interface SetShopStatusPayload {
+  manuallyClosed: boolean;
+  reason?: string;
+}
+
+export const WEEKDAYS = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO", "DOMINGO"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export interface OpeningHoursDay {
+  day: Weekday;
+  opensAt: string | null;
+  closesAt: string | null;
+  closed: boolean;
+}
+
+export interface OpeningHours {
+  days: OpeningHoursDay[];
+}
+
+export interface Photo {
+  id: string;
+  url: string;
+  isPrimary: boolean;
+}
+
+export interface Product {
+  id: string;
+  shopId: string;
+  name: string;
+  description: string;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  price: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  active: boolean;
+  lowStock: boolean;
+  /** Presigned GET URLs — expire after ~1h, don't cache long-term. */
+  photos: Photo[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProductPayload {
+  name: string;
+  description: string;
+  subcategoryId?: string;
+  price: number;
+  stockQuantity: number;
+  lowStockThreshold?: number;
+  active?: boolean;
+}
+
+export type UpdateProductPayload = Partial<CreateProductPayload>;
+
+/** Response from a .../presign call — upload the file to `uploadUrl` yourself, then confirm with `key`. */
+export interface PresignResponse {
+  uploadUrl: string;
+  key: string;
+  expiresAt: string;
+}
+
+export interface ProductsQuery {
+  query?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  active?: boolean;
+  lowStock?: boolean;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+export interface DashboardSummary {
+  isOpen: boolean;
+  productCount: number;
+  activeProductCount: number;
+  lowStockCount: number;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}

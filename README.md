@@ -129,14 +129,38 @@ hydration mismatch reading `localStorage`). An inline script in
 | `/complete-profile` | Gate for accounts missing required fields (see above). |
 | `/set-password` | Landing page for an admin-created account's invite email (`?email=...&code=...`). Sets the user's password via `POST /auth/set-password` and logs them straight in. **The exact query-param shape is a frontend assumption** — confirm it matches whatever URL the backend's invite email actually sends (see `app/set-password/page.tsx`'s doc comment). |
 
-### Merchant / Courier / Admin — login only
+### Merchant / Courier / Admin — shared login
 
 Same `/login` page for every role; login redirects to the right role home,
-and each role's page guard (`RoleLanding`/`AdminShell`) re-confirms that
-live on every load. Merchant (`/merchant`) and Courier
-(`/courier`) are currently **stub landing pages only** (`RoleLanding.tsx`)
-— "Bem-vindo(a)" + logout, no real dashboard yet. Admin is further along
-(see next section).
+and each role's page guard (`RoleLanding`/`AdminShell`/`MerchantShell`)
+re-confirms that live on every load. Courier (`/courier`) is still a
+**stub landing page only** (`RoleLanding.tsx`) — "Bem-vindo(a)" + logout,
+no real dashboard yet. Merchant and Admin are built out (see below).
+
+### Merchant dashboard — shops, products & stock
+
+Built against the real **Stores-and-Stock microservice**
+(`STORES_API_BASE_URL`, separate from Auth) — see
+[`API_REFERENCE_MERCHANT_DASHBOARD.md`](./API_REFERENCE_MERCHANT_DASHBOARD.md)
+for the live contract. **A merchant can own multiple shops**; almost
+everything is scoped under `/merchant/shops/[shopId]/...`.
+
+| Route | Purpose |
+|---|---|
+| `/merchant` | Shop picker — cards per shop (open/closed, low-stock count), link to create a new one. |
+| `/merchant/shops/new` | Create a shop (fiscal fields, categories, bairro). Auto-activates once name/NUIT/address/city/neighborhood are all filled; otherwise stays `DRAFT`. |
+| `/merchant/shops/[shopId]` | Per-shop dashboard: status, open/closed, product counts, low-stock count. |
+| `/merchant/shops/[shopId]/settings` | Fiscal/profile edit, categories, pickup/delivery flags, manual open/pause override. |
+| `/merchant/shops/[shopId]/hours` | Weekly opening-hours editor (replace-all-week `PUT`). |
+| `/merchant/shops/[shopId]/products` | Search/filter (low-stock toggle)/paginate; activate/deactivate inline. |
+| `/merchant/shops/[shopId]/products/new`, `.../products/[productId]` | Create/edit a product — category→subcategory cascading picker, stock adjust (absolute set), image URLs (no upload endpoint — see below). |
+
+**Not built — the backend doesn't own these yet**: Orders (merchant-facing
+accept/reject/prepare/ready/pickup-QR), Sales summary, Receipts
+("Recebimentos por transação"), and product **photo upload** (no
+multipart endpoint exists — `imageUrls`/`primaryImageUrl` are plain string
+fields the merchant pastes URLs into). Don't build UI for these until told
+a backend for them exists.
 
 ### Admin dashboard — User management
 
@@ -210,26 +234,36 @@ app/
   auth/callback/route.ts      Google OAuth landing (BFF)
   complete-profile/           profile-completion gate
   set-password/                admin-invite completion page
-  home/ merchant/ courier/    role stub landings (RoleLanding.tsx)
+  home/ courier/               role stub landings (RoleLanding.tsx)
   admin/                      Admin dashboard (layout.tsx guards everything under it)
     page.tsx                  overview
     users/                    list, users/new (create), users/[id] (detail/edit)
+  merchant/                   Merchant dashboard (layout.tsx guards everything under it)
+    page.tsx                  shop picker
+    shops/new/                create shop
+    shops/[shopId]/           dashboard, settings/, hours/, products/ (list, new/, [productId]/)
   api/
     auth/                     BFF: register, login, logout, otp/*, profile, me, google/start, set-password
     admin/users/              BFF: list/create, [id] get/edit, role, enabled, approve, reject
-    meta/neighborhoods/       BFF: bairro lookup
+    merchant/shops/           BFF: shops CRUD, status, hours, products CRUD, stock, active, dashboard/summary
+    meta/neighborhoods/       BFF: bairro lookup (Auth service)
+    meta/categories/          BFF: category/subcategory lookup (Stores service)
 
 lib/
   auth/                       session/cookie handling, JWT decode, role maps, zod schemas,
-                               client-side fetch wrappers, server-only Auth API client
+                               client-side fetch wrappers, server-only Auth API client,
+                               shared BFF auth helper (bffAuth.ts)
   admin/                      admin-specific types, PT role/status labels, zod schemas,
-                               client-side fetch wrappers, BFF auth helper
+                               client-side fetch wrappers
+  stores/                     Stores-service types, zod schemas, client-side fetch wrappers,
+                               server-only Stores API client, PT weekday labels
   theme/                      dark/light ThemeProvider
   clsx.ts                     tiny className helper
 
 components/
-  ui/                         Button, Input, Select — reuse these, don't reinvent
-  admin/                      AdminShell (layout guard), Badge
+  ui/                         Button, Input, Select, Badge — reuse these, don't reinvent
+  admin/                      AdminShell (layout guard)
+  merchant/                   MerchantShell (layout guard), ShopNav (shop-scoped sub-nav)
   Logo.tsx ThemeToggle.tsx LogoutButton.tsx RoleLanding.tsx
 
 proxy.ts                      runs on every page: silent token refresh + role gating
@@ -243,6 +277,8 @@ See [`.env.example`](./.env.example). Key ones:
 
 - `AUTH_API_BASE_URL` — server-only, the Auth microservice base URL. Never
   exposed to the browser.
+- `STORES_API_BASE_URL` — server-only, the Stores-and-Stock microservice
+  base URL (separate service from Auth, backs the Merchant dashboard).
 - `NEXT_PUBLIC_APP_URL` — used to build the Google OAuth callback URL.
 - The Auth service's `OAUTH_FRONTEND_REDIRECT_URI` must point at
   `${NEXT_PUBLIC_APP_URL}/auth/callback` (confirmed against a live login —
@@ -265,11 +301,19 @@ See [`.env.example`](./.env.example). Key ones:
 - **OTP verify** has only been checked for request/response wiring, not
   against a real emailed code.
 - **No visual/browser QA** on any screen — everything so far has been
-  verified via `curl`/server logs against the live Auth service, plus
+  verified via `curl`/server logs against the live backends, plus
   typecheck/lint/build. Worth a real click-through pass.
-- Merchant and Courier are login-only stubs; no dashboards yet.
+- Courier is a login-only stub; no dashboard yet.
 - Admin dashboard has no Orders ops or Transactions/commissions monitoring
   yet (out of scope for the current feature slice).
+- Merchant dashboard has no Orders, Sales summary, Receipts, or product
+  photo upload — the Stores-and-Stock service explicitly doesn't own those
+  (see `API_REFERENCE_MERCHANT_DASHBOARD.md`'s "What's not here"). Don't
+  build UI for them until told a backend exists.
+- One `PATCH /merchant/shops/{shopId}` call returned a raw, non-standard
+  `500 {"message":""}` once during live testing — not reproducible on
+  retry (identical request succeeded immediately after). Likely a
+  transient backend hiccup; noted in `context.md` in case it recurs.
 
 ---
 
@@ -277,4 +321,5 @@ See [`.env.example`](./.env.example). Key ones:
 
 - [`AGENTS.md`](./AGENTS.md) — product rules, phases, and how to work in this repo.
 - [`API_REFERENCE-security-service.md`](./API_REFERENCE-security-service.md) — the live Auth service contract.
+- [`API_REFERENCE_MERCHANT_DASHBOARD.md`](./API_REFERENCE_MERCHANT_DASHBOARD.md) — the live Stores-and-Stock service contract (rewritten by the backend team from the original frontend-authored spec once it shipped; Merchant dashboard is built against this).
 - `context.md` — working notes for whatever feature is *currently* in progress (reset per feature, not a full history — this README is the durable reference).

@@ -129,13 +129,15 @@ The user implements phase by phase. **Default active phase is Phase 1 (MVP)** un
 
 ### Merchant
 - Login (same Auth, role MERCHANT)
-- Dashboard (sales today, orders, low stock)
+- Dashboard (Shops, sales today, orders, stock)
+- The stock are made of products, so the merchant will create products (With all relevant fields of a normal e-comerce, including photos)
 - Fiscal / store profile fields needed for invoices
 - Opening hours
 - Products CRUD + stock
 - Orders list/detail (accept/reject, prepare, ready, pickup QR validation UX)
 - Sales summary
 - **Recebimentos por transação** (gross, commission, net, status) — not day-close
+- One Merchant can create and manage multiple shops/store. His dashboard will be by shop
 
 ### Courier
 - Login (same Auth, role COURIER)
@@ -168,6 +170,7 @@ The user implements phase by phase. **Default active phase is Phase 1 (MVP)** un
 - Promotions / advertising surfaces
 - Grouped deliveries (courier)
 - Richer merchant promos
+- Customer reviews on products and stores
 
 ## Phase 3
 

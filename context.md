@@ -8,203 +8,199 @@
 
 ---
 
-## Current feature: Admin dashboard — User management
+## Current feature: Merchant dashboard
 
-**Scope (per user, narrower than `AGENTS.md`'s full Admin section):** Admin
-dashboard, User management only — no Orders ops, no Transactions/commissions
-yet. Within user management: list/search/filter users, create a user
-directly (onboard Merchant/Courier/Admin), view/edit any user's profile,
-change role, activate/deactivate, and approve/reject a self-registered
-user's role-upgrade request.
+**Scope (per `AGENTS.md` §6, Merchant Phase 1):** dashboard (shops overview,
+per-shop summary), fiscal/store profile, opening hours, products CRUD +
+stock, categories/subcategories, product photos + shop logo/cover upload.
+**Not built**: Orders, Sales summary, Receipts — the backend explicitly
+doesn't own these yet (see below).
 
-**Status:** Backend now implements the full contract this feature needs
-(`API_REFERENCE-security-service.md`, superseding the old `API_REFERENCE.md`
-— that file is gone, update any stale references you find). Typecheck/lint/
-build clean. Live-verified: registering with a `requestedRole` correctly
-lands the account as `CUSTOMER` + `status: PENDING`, and the `/home` pending
-banner renders correctly for that account. **Still not verified**: the
-admin-only actions (list/create/edit/role/enable/approve/reject) — no ADMIN
-account exists to test with (see "Needs your attention").
+**Status: fully built and live-verified end-to-end**, including real S3
+photo/logo/cover uploads, against the real **Stores-and-Stock microservice**
+(`localhost:8092`, `KONECTA-STORES-AND-STOCK-SERVICE`), using a real
+MERCHANT session (`dercio.anselmo@zohomail.com`). Also — separately, same
+session — **the Admin User Management feature (previous feature slice) got
+its first-ever live test with real ADMIN credentials**
+(`dercio.anselmo@yahoo.com`) and every action (list, create, role change,
+enable/disable, edit, approve) confirmed working correctly. Went from
+spec-only → real implementation in one sitting once the backend team
+delivered `API_REFERENCE_MERCHANT_DASHBOARD.md` rewritten with the live
+contract (that file is now the authoritative reference — the frontend-
+authored original spec is gone, replaced in place — and it was rewritten a
+second time mid-feature when photo upload landed, see below).
 
-### Bugfix: infinite redirect loop for a just-approved user
+### What's built vs. explicitly not (backend-owned split)
 
-A user real-world tested this: registered with `requestedRole: MERCHANT`,
-got approved by an admin, then hit `ERR_TOO_MANY_REDIRECTS` bouncing between
-`/` and `/home`. Root cause: **two different sources of truth for "what's
-this user's role" that can disagree.** `proxy.ts` decided role-based
-redirects from the JWT's `roles` claim — fixed at token-issue time, and
-never refreshed just because the DB role changed server-side (approval
-doesn't reissue the user's existing token). Meanwhile `RoleLanding`/
-`AdminShell` decide from a **live** `GET /users/me` call. Right after
-approval: JWT still says `CUSTOMER`, live profile says `MERCHANT` → proxy
-sends a `/merchant` request back to `/home` (using the stale claim), the
-`/home` page's live check sees the *real* role is `MERCHANT` and sends them
-to `/merchant` — infinite loop, one redirect each hop, since the two layers
-never agree.
+Confirmed live, built against real endpoints:
+- Shops: list (with per-shop `lowStockCount`/`isOpen`/`logoUrl` cards),
+  create (auto-activates once name+nuit+address+city+neighborhood are all
+  present, else `DRAFT`), get/edit fiscal profile, manual open/pause
+  override, opening hours (`GET`/`PUT`, replace-all-week), **logo/cover
+  upload** (presigned S3, see below).
+- Products: CRUD, category→subcategory cascading picker, stock adjust
+  (absolute set), archive/restore via `active` toggle, low-stock filter,
+  **photo upload/delete/set-primary** (presigned S3).
+- Dashboard summary (product counts + low-stock count only — no sales/
+  orders numbers, see below).
+- Public category/subcategory meta endpoints.
 
-**Fix**: `proxy.ts` no longer makes any role-based redirect decision at
-all — it only checks "is there a valid/refreshable session" (redirects to
-`/login` if not) and lets the request through otherwise. All role-based
-routing is now decided in exactly one place: the page-level guards
-(`RoleLanding`, `AdminShell`), which always use live `/users/me` data. This
-makes the loop structurally impossible — there's only one authority left,
-so it can't disagree with itself. Cost: a wrong-role user does one extra
-round-trip through the wrong page's guard before landing correctly, instead
-of proxy short-circuiting it — a non-issue since that guard check is cheap
-and was already happening anyway.
+**Explicitly NOT built — the backend doesn't own these** (per the spec's
+"What's not here" section): Orders (merchant-facing list/detail/accept/
+reject/etc.), Sales summary, Receipts. Don't build UI for these until the
+user says a backend for them exists — same discipline as the rest of this
+app: build against confirmed live endpoints, not guesses.
 
-**Not yet addressed**: the user's *access token itself* still carries the
-stale role claim for up to 15 minutes (until it naturally expires and
-refreshes) or until they log out/in again. This only matters once there's
-a real Merchant/Courier dashboard making role-gated API calls that the
-*backend* authorizes off the JWT claim rather than a live DB check — purely
-cosmetic today since the merchant/courier shells are still stubs with no
-protected actions. Worth revisiting if a just-approved user reports being
-treated as their old role by an actual API call, not just page routing.
+### What changed from the original (frontend-authored) spec — don't be surprised by these
 
-### How this feature evolved: built ahead of the backend, then reconciled
-
-Originally the backend had none of this — no create-user endpoint, no
-"pending" concept at all. I flagged the gap, the user said to build the
-frontend against an assumed contract and document exactly what the backend
-needed to add. That doc was `API_REFERENCE_ADMIN_USER_MANAGEMENT.md`. The
-backend team then implemented (almost) exactly that proposal — the user
-pointed me at the real, updated `API_REFERENCE-security-service.md` and I
-reconciled the frontend against it. **The gap doc has since been deleted**
-(its purpose was superseded) — don't recreate it or reference it, the real
-API doc is now the only source of truth.
-
-**Where the real contract differs from what was proposed** (worth knowing
-if you're debugging something that doesn't match your intuition):
-
-- `status` is `PENDING | ACTIVE | REJECTED` — **not** `PENDING | ACTIVE |
-  DISABLED` as originally guessed. `enabled` (the pre-existing
-  suspend/restore boolean) stays completely separate — a rejected request
-  doesn't disable the account, and disabling an account doesn't touch
-  `status`.
-- `status`/`requestedRole` only ever get populated via the **self-service**
-  path: `POST /auth/register` with an optional `requestedRole` field
-  (`MERCHANT`/`COURIER`/`MOBILITY_PARTNER`, not `ADMIN`). A user created
-  directly by an admin via `POST /admin/users` gets their role assigned
-  immediately — no pending/approval step for that path at all.
-- Admin-created accounts have **no password** — the backend emails a
-  one-time "set up your account" link, completed via the new
-  `POST /auth/set-password`. This wasn't part of the original ask but is
-  required for admin-created users to ever be able to log in, so I added
-  `/set-password` (page + BFF route) to close that loop.
-- `status`/`requestedRole` are core fields on `UserProfileResponse` now —
-  every user has them, not just ones admins look at. Moved the types from
-  `lib/admin/types.ts` onto `UserProfile` itself (`lib/auth/types.ts`);
-  `lib/admin/types.ts`'s `AdminUser` is now just a type alias for
-  `UserProfile`, kept for readability at admin call sites.
-
-### What got added beyond the original admin-only ask
-
-To make the `PENDING`/approve/reject workflow actually reachable (nothing
-produces a `PENDING` user except self-registration with `requestedRole`),
-also touched the public register flow:
-
-- `/register` (`app/register/page.tsx`) — added a "Quero registar-me como"
-  select (Cliente / Comerciante / Entregador / Parceiro de Mobilidade).
-  Non-Cliente choices submit `requestedRole`.
-- `components/RoleLanding.tsx` (the `/home` stub) — shows a small pending
-  banner naming the requested role when `status === "PENDING"`, so the loop
-  from "customer applies to become a Merchant" → "admin sees it in
-  `/admin/users?status=PENDING`" → "customer sees outcome" is visible
-  end-to-end, not just backend-plumbed.
-- `lib/auth/roleLabels.ts` — `ROLE_LABELS`/`REQUESTABLE_ROLES` moved here
-  from `lib/admin/roleLabels.ts` since the public register page now needs
-  them too (a public page importing from `lib/admin/*` would've been a
-  layering smell). `lib/admin/roleLabels.ts` re-exports `ROLE_LABELS`/
-  `REQUESTABLE_ROLES` from there and keeps the admin-only constants
-  (`ONBOARDABLE_ROLES`, `ASSIGNABLE_ROLES`, `STATUS_LABELS`).
+- **`category` is no longer a free string.** Real two-level taxonomy now:
+  `Shop.categories` (many, top-level, via `categoryIds` on create/update)
+  and `Product.subcategoryId` (one, product-level, scoped to a category).
+  `GET /api/v1/meta/categories` and
+  `GET /api/v1/meta/categories/{categoryId}/subcategories` back the
+  cascading picker in the product forms.
+- **Shop has a real status machine**: `DRAFT | PENDING_REVIEW | ACTIVE |
+  SUSPENDED | CLOSED`, plus `activationReady` (true once the fiscal fields
+  are all filled). Not in the original spec, which assumed a simpler
+  DRAFT/ACTIVE binary. The create/edit forms surface this but don't gate
+  on it — a `DRAFT` shop is still usable, just shown with a badge.
+- **Opening hours use Portuguese day codes** (`SEGUNDA...DOMINGO`), not
+  English `MONDAY...SUNDAY` as originally guessed.
+- **Times come back as `HH:mm:ss`** (e.g. `"08:00:00"`), not `HH:mm`.
+  `<input type="time">` needs `HH:mm` to render — `HoursForm.tsx` trims to
+  5 chars on load (`toInputTime`/`normalizeDays`). Caught this by actually
+  testing live against the real service, not from reading the doc — if a
+  future time-related field misbehaves, check for this same trailing-
+  seconds pattern first.
+- **Photo/logo/cover upload arrived mid-feature as a breaking change**:
+  first revision of the doc said no upload endpoint existed (frontend used
+  plain `imageUrls`/`primaryImageUrl` text fields as an interim). Second
+  revision replaced that entirely with a **presigned S3 flow**:
+  `Product.photos: {id, url, isPrimary}[]` (the `imageUrls`/
+  `primaryImageUrl` fields are gone), plus new `Shop.logoUrl`/`coverUrl`
+  upload endpoints. Every photo/logo/cover `url` is a **presigned GET that
+  expires** (~1h) — never cache it, always re-fetch the parent resource.
+  See "Architecture" below for the upload flow itself.
+- **`todaySalesTotal`/`pendingOrdersCount` don't exist** on the shops-list
+  cards, and the dashboard summary doesn't have sales/orders fields either
+  — both need the Orders/Payments service this backend doesn't own.
 
 ### Architecture
 
-- **BFF routes**: `app/api/admin/users/route.ts` (GET list + POST create),
-  `.../[id]/route.ts` (GET one + PATCH edit), `.../[id]/role/route.ts`,
-  `.../[id]/enabled/route.ts`, `.../[id]/approve/route.ts`,
-  `.../[id]/reject/route.ts`, plus `app/api/auth/set-password/route.ts`
-  (mirrors the `/api/auth/login` pattern: exchange happens server-side,
-  cookies get set, client only ever sees a `UserProfile`, never raw
-  tokens). All proxy to the Auth service via `lib/auth/authApi.ts`, using a
-  shared `requireAccessToken()` helper (`lib/admin/adminAuth.ts`) that just
-  needs *a* valid session — role enforcement (403 for non-admins) is left
-  to the backend, per its own model.
-- **Route handler dynamic params**: this Next version (16.3.4) makes
-  `params` a `Promise` in Route Handlers — use the `RouteContext<'/path/[id]'>`
-  global typed helper (`ctx: RouteContext<"/api/admin/users/[id]">`, then
-  `await ctx.params`), not a hand-written params type. Same pattern as
-  `LayoutProps`/`PageProps` used elsewhere in this codebase. **After adding
-  a new dynamic route, run `npx next typegen` (or `next build`) before
-  `tsc --noEmit`** — the global route-literal types are generated, not
-  hand-authored, and a bare `tsc` run against stale `.next/types` reports
-  false positives on brand-new routes.
-- **Auth/role gate**: `app/admin/layout.tsx` wraps every `/admin/*` page in
-  `components/admin/AdminShell.tsx` (a Server Component) — one guard
-  (unauthenticated → `/login`, incomplete profile → `/complete-profile`,
-  wrong role → their own role home) instead of repeating `RoleLanding`-style
-  checks per page. `/admin` itself is a real dashboard page now
-  (`app/admin/page.tsx`), showing a pending-count badge fetched server-side.
-- **Pages**: `/admin` (overview), `/admin/users` (list/search/filter/
-  paginate + inline quick actions, client component), `/admin/users/new`
-  (create form), `/admin/users/[id]` (detail/edit + role change + enable-
-  disable + approve/reject — split into a thin Server Component `page.tsx`
-  that awaits `params` and a client `UserDetailView.tsx`, same pattern as
-  `complete-profile`), `/set-password` (public, same Suspense-wrapped
-  client-form-reading-searchParams pattern as `/verify-otp`).
-- **`lib/admin/`**: `types.ts`, `roleLabels.ts` (admin-only labels + re-export
-  of the shared ones), `validation.ts` (zod schemas), `client.ts`
-  (client-side fetch wrappers, mirrors `lib/auth/client.ts`'s pattern),
-  `adminAuth.ts` (server-only BFF auth helper).
-- **`components/admin/`**: `AdminShell.tsx`, `Badge.tsx` (small status/role
-  pill, reused across list and detail views — also shows a "Desativada"
-  badge separately from the status badge, since `enabled` and `status` are
-  independent per the real contract).
-- **Lint gotcha, hit twice in this feature**: `useEffect(() => { load(); },
-  [load])` where `load` is an async `useCallback` that calls `setState`
-  before its first `await` trips `react-hooks/set-state-in-effect` (same
-  family of issue as the theme provider fix from the auth feature) —
-  because those setState calls run synchronously up to the first `await`,
-  they count as "within the effect." Fixed in both `app/admin/users/page.tsx`
-  and `UserDetailView.tsx` by deferring the call: `queueMicrotask(() =>
-  load())` inside the effect. Apply the same trick if this pattern shows up
-  again.
+- **New env var**: `STORES_API_BASE_URL` (server-only, `.env.example` and
+  `.env.local` updated) — this is a *separate* microservice from Auth, not
+  an extension of it.
+- **`lib/stores/`**: `types.ts`, `storesApi.ts` (server-only fetch client,
+  mirrors `lib/auth/authApi.ts`), `client.ts` (client-side fetch wrappers),
+  `validation.ts` (zod schemas), `dayLabels.ts` (PT weekday labels).
+- **Shared BFF auth helper extracted**: `requireAccessToken()` moved from
+  `lib/admin/adminAuth.ts` to `lib/auth/bffAuth.ts` (generic — just
+  resolves/refreshes a Bearer token, role enforcement is left to whichever
+  backend service is called). `lib/admin/adminAuth.ts` now just re-exports
+  it, so existing admin route imports didn't need to change.
+- **`Badge` moved** from `components/admin/Badge.tsx` to
+  `components/ui/Badge.tsx` — it was already generic, now genuinely shared
+  between the Admin and Merchant features. Updated all three import sites.
+- **BFF routes** under `app/api/merchant/shops/**` and
+  `app/api/meta/categories/**`, one Route Handler per endpoint, same
+  pattern as the Admin/Auth features — proxy to `storesApiFetch`, never
+  call the Stores service from the client.
+- **Route structure**: `app/merchant/layout.tsx` → `MerchantShell` (auth +
+  role guard, mirrors `AdminShell`) wraps everything. `/merchant` (shop
+  picker, Server Component fetching directly via `storesApiFetch` — no
+  BFF round-trip needed for a page that already runs server-side).
+  `/merchant/shops/new` (create). Everything else is shop-scoped under
+  `/merchant/shops/[shopId]/...`: `page.tsx` (dashboard), `settings/`,
+  `hours/`, `products/` (list, `new/`, `[productId]/`). Each shop-scoped
+  page shares `components/merchant/ShopNav.tsx` for the Painel/Produtos/
+  Horário/Definições sub-nav — this IA segment (`[shopId]`) isn't in
+  `AGENTS.md` §7 yet, which still shows the old flat single-shop routes;
+  worth reconciling that doc once someone reads this.
+- Most shop-scoped pages are a thin Server Component `page.tsx` (just
+  awaits `params`) + a client component doing the actual fetch/form work
+  — same split used by `complete-profile` and admin's user-detail page.
+- **Photo/logo/cover upload — presigned two-step, NOT proxied through our
+  BFF for the actual bytes**: `lib/stores/upload.ts`'s `uploadAndConfirm()`
+  (1) calls our BFF's `.../presign` route (server-side, adds the Bearer
+  token) to get `{uploadUrl, key}`, (2) does a **plain client-side `fetch`
+  PUT straight to `uploadUrl`** (S3) — no Authorization header, the
+  signature in the URL is the auth, and this deliberately bypasses our own
+  server entirely, matching the doc's explicit instruction not to route
+  the file through the API — (3) calls our BFF's confirm route (POST,
+  `{key}`) which verifies the object landed and returns the updated
+  resource. Used from `ProductDetailView.tsx` (photos) and
+  `ShopSettingsForm.tsx` (logo/cover) via a hidden `<input type="file">` +
+  a visible button triggering `.click()` on it. Photo upload is **not
+  available on the create-product form** — a product needs an id first, so
+  photos are added after creation, on the detail page.
+- Images from S3 are rendered with `next/image`'s `unoptimized` prop (the
+  URLs are presigned, per-request, and query-string-heavy — not something
+  Next's built-in image optimizer/domain-allowlist should touch).
+- **Lint gotcha hit again** (third time now, same family as the theme
+  provider and admin-users-list fixes): an effect with an early-return
+  synchronous `setState` (`if (!categoryId) { setSubcategories([]); return; }`)
+  trips `react-hooks/set-state-in-effect` even though the non-early-return
+  branch is async. Fixed by folding both branches into one promise chain
+  (`const load = categoryId ? listSubcategories(categoryId) :
+  Promise.resolve([]); load.then(setSubcategories)...`) instead of an
+  early-return. **Recognize this pattern going forward**: any effect whose
+  body can synchronously call `setState` on some branch (not just at the
+  very top) needs the same treatment — either the microtask-defer trick
+  used for `load()` calls, or folding into one promise chain like this.
+- **Zod `.coerce.number()` breaks with react-hook-form's generic** — the
+  resolver's inferred input type becomes `unknown`, not `number`,
+  producing a type error on `useForm<T>`. Fixed by using plain `z.number()`
+  in the schema and `{ valueAsNumber: true }` on the corresponding
+  `register()` calls instead of coercion. Apply this pattern for any future
+  numeric form field — don't reach for `.coerce` with RHF.
 
-### Verified working (live)
+### Verified live (real MERCHANT session, `dercio.anselmo@zohomail.com`)
 
-- Unauthenticated → `/admin/users` redirects to `/login?next=%2Fadmin%2Fusers`
-  (`proxy.ts` runs on nearly every page — see the auth feature's history in
-  git if you need that reasoning, this file was reset since then).
-- A logged-in CUSTOMER hitting `/admin/users` gets redirected to `/home`
-  (`AdminShell`'s role check); their token hitting the BFF directly
-  (`GET /api/admin/users`) gets the backend's real `403` passed through
-  without crashing.
-- `POST /auth/register` with `requestedRole: "MERCHANT"` → `201`, response
-  has `role: "CUSTOMER"`, `status: "PENDING"`, `requestedRole: "MERCHANT"`,
-  exactly as documented.
-- Logging into that pending account and loading `/home` renders the
-  "pedido... pendente de aprovação" banner naming "Comerciante" correctly.
-- Full build (`npm run build`) succeeds with all routes listed, including
-  the new `/set-password` and `/api/auth/set-password`.
+Full round trip: list shops (empty) → create shop → check
+`activationReady`/auto-`ACTIVE` → shop dashboard page renders → set opening
+hours (confirmed the `HH:mm:ss` quirk here) → fetch categories →
+fetch subcategories for a category → create a product with a subcategory
+(denormalized `categoryName`/`subcategoryName` came back correctly) →
+adjust stock below threshold → confirmed `lowStock` flips + the `lowStock`
+list filter picks it up → deactivate/reactivate product → edit shop
+settings (`PATCH`) → manual pause (`PATCH .../status`) → dashboard summary
+reflects `productCount`/`activeProductCount`/`lowStockCount` correctly →
+shops-list card reflects the updated `lowStockCount`. Also confirmed
+role/auth gating: unauthenticated → `/login?next=%2Fmerchant`.
 
-### Not verified — needs an ADMIN account to test
+One observed anomaly, **not reproducible on retry**: a single `PATCH
+/merchant/shops/{shopId}` call returned a raw `500 {"message":""}`
+(non-standard envelope) on the first attempt with a specific field
+combination; the identical request succeeded immediately after and every
+time since. Likely a transient backend hiccup (JIT warm-up, connection
+pool, race on a fresh dev instance) — logged here in case it recurs, not
+something the frontend can or should work around. The doc's later revision
+now explicitly says unexpected server errors come back as a proper
+`{code: "INTERNAL_ERROR", ...}` envelope going forward — if a raw
+`{"message":""}` shows up again, that's worth re-flagging since it'd mean
+something bypassed the backend's own error handling.
 
-Still could not obtain admin credentials in this session (self-registration
-always creates `CUSTOMER`; promoting to `ADMIN` requires an *existing*
-admin token — a chicken-and-egg this environment has no way around). None of
-the actual admin actions were exercised against a real admin session:
-list/search/filter/paginate, create user (+ whether its invite email
-actually links to what `/set-password` expects — that query-param shape is
-still a frontend assumption, see the doc comment in
-`app/set-password/page.tsx`), edit-any-user, role change, enable/disable,
-approve, reject. Also no screenshots/visual QA — curl/log-based checks only.
+**Photo/logo/cover upload — verified against the real S3 bucket**
+(`konecta-media-564956047797`), not a mock: presigned a product photo →
+`PUT` real bytes straight to S3 (bypassing our server entirely, as
+designed) → confirmed with our BFF → response correctly showed
+`isPrimary: true` on the first photo for a product. Same flow verified for
+shop logo upload — confirmed with `logoUrl` populated on both the shop
+detail and the shops-list card afterward.
+
+**Admin User Management — first live test ever, all passed**: logged in as
+real ADMIN (`dercio.anselmo@yahoo.com`). Listed real users (including every
+test account from earlier sessions). Registered a fresh user with
+`requestedRole: COURIER`, approved it via the real `POST .../approve` —
+response correctly showed `role: COURIER`, `status: ACTIVE`,
+`requestedRole: null`. Used `POST /admin/users` to create a staff account
+directly (`role: MERCHANT`, `status: ACTIVE` immediately, no approval
+step — matches the doc). Changed that user's role, disabled the account,
+and edited their profile — all via the real BFF routes, all correct.
 
 ### Standing conventions to keep using
 
-- Portuguese (Mozambique) copy throughout.
-- Reuse `components/ui/{Button,Input,Select}` and `components/admin/Badge.tsx`.
-- BFF pattern for everything backend-facing; never call the Auth service
-  directly from the client.
+- Portuguese (Mozambique) copy throughout, MT currency, IVA-inclusive
+  shelf prices.
 - One context file per feature, reset when the user says it's time for the
-  next one — see instruction that started this file.
+  next one.

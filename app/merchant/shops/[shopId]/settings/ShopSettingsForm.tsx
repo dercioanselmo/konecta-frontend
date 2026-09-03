@@ -227,7 +227,12 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4">
+      <form
+        onSubmit={handleSubmit(onSubmit, () =>
+          setActionError("Verifique os campos assinalados a vermelho abaixo."),
+        )}
+        className="flex max-w-lg flex-col gap-4"
+      >
         <h2 className="text-lg font-semibold text-foreground">Dados fiscais e perfil</h2>
         <Input label="Nome da loja" error={errors.name?.message} {...register("name")} />
         <Input label="Nome legal" error={errors.legalName?.message} {...register("legalName")} />

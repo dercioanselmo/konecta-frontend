@@ -10,7 +10,71 @@
 
 ## Current feature: My Profile + mustChangePassword gate + Merchant Staff CRUD
 
-**Status: fully built, typecheck clean, lint clean, production build clean.**
+**Status: built by AmazonQ (a different agent) in a session I wasn't part
+of, then I fixed two reported bugs on top of it** — typecheck/lint/build
+clean.
+
+### Bug triage session (after AmazonQ's build) — what was actually wrong
+
+User reported "shop settings: neighborhood saves, email doesn't" and
+"product updates aren't working." Diagnosed both by testing live against
+the real backend rather than guessing from code:
+
+1. **Shop `email` not saving — not a bug, existing documented backend
+   limitation.** Confirmed live: `PATCH /merchant/shops/{shopId}` with
+   `{"email": "..."}` returns `200` but `email` stays `null`. Matches
+   `API_REFERENCE_MERCHANT_DASHBOARD.md`'s `Shop` model note verbatim:
+   *"email | string? | Not settable via any current endpoint."* Nothing to
+   fix on the frontend — the field is correctly wired, the backend just
+   silently ignores it. If this needs to work, it's a backend ask, not a
+   frontend one.
+
+2. **Product updates silently failing — real frontend bug, now fixed.**
+   `lib/stores/validation.ts`'s `createProductSchema` (reused for both
+   create and edit) had `lowStockThreshold: z.number().int().min(0).optional()`
+   fed by `register(..., { valueAsNumber: true })`. zod v4 rejects both
+   `NaN` (what an emptied/untouched number input produces via
+   `valueAsNumber`) and `null` (a value the API can legitimately return)
+   for a plain `.optional()` number field — confirmed directly:
+   `schema.safeParse({ lowStockThreshold: NaN, ... }).success === false`.
+   This silently blocked the **entire** product edit/create form submit
+   (react-hook-form's `handleSubmit` never even calls the submit callback
+   on a validation failure), with only a small inline error under that one
+   field to explain why — easy to miss, reads exactly like "nothing
+   happens when I click save." **Fixed** by:
+   - `lib/stores/validation.ts` — new exported `optionalNumberField`
+     (`{ setValueAs: (v) => v === "" ? undefined : Number(v) }`), used
+     instead of `{ valueAsNumber: true }` on `register("lowStockThreshold", ...)`
+     in both `NewProductForm.tsx` and `ProductDetailView.tsx` — an emptied
+     field now becomes `undefined` (genuinely "not provided"), not `NaN`.
+   - `ProductDetailView.tsx`'s `load()` — `reset()` now coalesces
+     `p.lowStockThreshold ?? undefined` defensively for the API-`null` case.
+   - **Do not** reach for `z.preprocess` to solve this class of problem —
+     tried it first, it reintroduces the exact `.coerce.number()` input/
+     output type mismatch with react-hook-form's generic that was already
+     fixed once before in this codebase (see the Admin feature's context
+     history). `setValueAs` on `register()` is the correct tool: it
+     transforms at the form layer, so the zod schema's inferred type stays
+     clean.
+   - Also added a top-level `actionError`/`formError` banner
+     (`handleSubmit(onSubmit, () => setActionError("Verifique os campos
+     assinalados a vermelho abaixo."))`) to all three merchant product/shop
+     forms — so *any* future silent client-validation failure surfaces
+     visibly instead of only as an easy-to-miss inline field error. Apply
+     this same two-argument `handleSubmit` pattern to new forms going
+     forward.
+   - Verified live: the exact payload shape the fixed form now produces
+     (numeric field omitted rather than sent as `NaN`) round-trips
+     correctly against the real backend.
+
+**Not yet investigated**: whether AmazonQ's build introduced other
+inconsistencies beyond these two reported ones. A quick scan found one
+harmless loose end — `ProductDetailView.tsx` accepts a `hideStaff` prop
+that's threaded in but never used inside that component (dead prop, just
+an eslint warning, not a functional bug). Full audit of AmazonQ's changes
+wasn't done — this session only chased the two symptoms actually reported.
+
+### What was built (by AmazonQ, before this session)
 
 ### What was built
 

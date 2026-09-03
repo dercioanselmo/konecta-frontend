@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import {
   createProductSchema,
+  optionalNumberField,
   stockAdjustSchema,
   type CreateProductFormValues,
   type StockAdjustFormValues,
@@ -69,7 +70,7 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
         subcategoryId: p.subcategoryId ?? "",
         price: p.price,
         stockQuantity: p.stockQuantity,
-        lowStockThreshold: p.lowStockThreshold,
+        lowStockThreshold: p.lowStockThreshold ?? undefined,
         active: p.active,
       });
     } catch (err) {
@@ -307,7 +308,12 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
         )}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4">
+      <form
+        onSubmit={handleSubmit(onSubmit, () =>
+          setActionError("Verifique os campos assinalados a vermelho abaixo."),
+        )}
+        className="flex max-w-lg flex-col gap-4"
+      >
         <h2 className="text-lg font-semibold text-foreground">Dados do produto</h2>
         <Input label="Nome" error={errors.name?.message} {...register("name")} />
         <label className="flex flex-col gap-1.5">
@@ -355,7 +361,7 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
           type="number"
           min="0"
           error={errors.lowStockThreshold?.message}
-          {...register("lowStockThreshold", { valueAsNumber: true })}
+          {...register("lowStockThreshold", optionalNumberField)}
         />
 
         <Button type="submit" loading={isSubmitting} className="mt-2 w-auto px-6">

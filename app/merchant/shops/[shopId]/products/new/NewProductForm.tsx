@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { createProductSchema, type CreateProductFormValues } from "@/lib/stores/validation";
+import { createProductSchema, optionalNumberField, type CreateProductFormValues } from "@/lib/stores/validation";
 import { createProduct, listCategories, listSubcategories } from "@/lib/stores/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { Category, Subcategory } from "@/lib/stores/types";
@@ -69,7 +69,12 @@ export function NewProductForm({ shopId }: { shopId: string }) {
         <h1 className="mt-1 text-2xl font-bold text-foreground">Novo produto</h1>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form
+        onSubmit={handleSubmit(onSubmit, () =>
+          setFormError("Verifique os campos assinalados a vermelho abaixo."),
+        )}
+        className="flex flex-col gap-4"
+      >
         <Input label="Nome" error={errors.name?.message} {...register("name")} />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-foreground">Descrição</span>
@@ -118,7 +123,7 @@ export function NewProductForm({ shopId }: { shopId: string }) {
           min="0"
           placeholder="5"
           error={errors.lowStockThreshold?.message}
-          {...register("lowStockThreshold", { valueAsNumber: true })}
+          {...register("lowStockThreshold", optionalNumberField)}
         />
 
         <p className="text-xs text-muted">

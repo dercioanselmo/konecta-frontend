@@ -68,9 +68,28 @@ export const createProductSchema = z.object({
     .number({ error: "Indique a quantidade" })
     .int("Deve ser um número inteiro")
     .min(0, "Não pode ser negativo"),
+  // NaN (from an emptied `valueAsNumber` input) or null (from the API) must
+  // never reach this validator as-is — zod's plain `.optional()` rejects
+  // both outright (they aren't `undefined`), which silently blocked the
+  // *whole* product form submit with only a small inline error under this
+  // one field to explain why. The empty/null -> undefined conversion is
+  // done at the form layer instead (see `numberFieldOptions` below), so
+  // this schema only ever sees a real number or undefined.
   lowStockThreshold: z.number().int().min(0).optional(),
   active: z.boolean(),
 });
+
+/**
+ * Use instead of `{ valueAsNumber: true }` on `register()` for OPTIONAL
+ * numeric fields: an emptied input becomes `undefined` (genuinely "not
+ * provided"), not `NaN` — zod rejects NaN as an invalid number, which
+ * blocks submission with only a small easy-to-miss inline error. Required
+ * numeric fields should keep `valueAsNumber: true` — there, an empty field
+ * correctly should fail validation.
+ */
+export const optionalNumberField = {
+  setValueAs: (value: string) => (value === "" ? undefined : Number(value)),
+};
 
 export type CreateProductFormValues = z.infer<typeof createProductSchema>;
 

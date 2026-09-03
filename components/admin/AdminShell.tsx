@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
+import { UserMenu } from "@/components/UserMenu";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
 import { roleHomePath } from "@/lib/auth/roles";
@@ -23,9 +24,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Link href="/profile" className="text-sm font-medium text-muted hover:text-foreground">
-            Perfil
-          </Link>
+          <UserMenu user={user} />
           <LogoutButton />
         </div>
       </header>

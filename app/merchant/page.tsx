@@ -1,10 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { storesApiFetch } from "@/lib/stores/storesApi";
-import { getValidAccessToken } from "@/lib/auth/session";
+import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
 import type { ShopSummary } from "@/lib/stores/types";
 
 export default async function MerchantShopsPage() {
+  // MERCHANT_STAFF only ever has the one shop they were assigned to — skip
+  // the picker and land them straight there. This route is unambiguously
+  // "/merchant" (it's this file), so no need to detect the current path
+  // any other way. MerchantShell already guarantees `shopId` is set for
+  // any MERCHANT_STAFF that gets this far.
+  const user = await getCurrentUser();
+  if (user?.role === "MERCHANT_STAFF" && user.shopId) {
+    redirect(`/merchant/shops/${user.shopId}`);
+  }
+
   const accessToken = await getValidAccessToken();
 
   let shops: ShopSummary[] = [];

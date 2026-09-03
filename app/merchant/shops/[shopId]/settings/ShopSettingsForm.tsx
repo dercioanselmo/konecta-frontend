@@ -31,6 +31,7 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -79,9 +80,11 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
 
   const onSubmit = async (values: EditShopFormValues) => {
     setActionError(null);
+    setSaved(false);
     try {
       const updated = await updateShop(shopId, values);
       setShop(updated);
+      setSaved(true);
     } catch (err) {
       setActionError(err instanceof ClientApiError ? err.details?.join(" ") ?? err.message : "Não foi possível guardar as alterações.");
     }
@@ -313,6 +316,8 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
             Aceita entrega
           </label>
         </div>
+
+        {saved ? <p className="text-sm text-brand-green">Guardado com sucesso.</p> : null}
 
         <Button type="submit" loading={isSubmitting} className="mt-2 w-auto px-6">
           Guardar alterações

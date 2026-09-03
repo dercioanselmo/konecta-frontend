@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
+import { UserMenu } from "@/components/UserMenu";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
 import { roleHomePath } from "@/lib/auth/roles";
@@ -23,7 +24,10 @@ export async function RoleLanding({ role, title }: { role: Role; title: string }
           <Logo size={36} />
           <span className="text-lg font-bold text-foreground">{title}</span>
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <UserMenu user={user} />
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-3 text-center">

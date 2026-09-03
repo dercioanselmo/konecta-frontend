@@ -8,6 +8,12 @@ own (Orders, Sales, Receipts) are called out explicitly — see
 [What's not here](#whats-not-here) — rather than removed, so the frontend
 knows what to stub vs. what to wire up now.
 
+> One section below is **not** live yet:
+> [PROPOSED — `MERCHANT_STAFF` access to product endpoints](#proposed--merchant_staff-access-to-product-endpoints-not-yet-implemented) —
+> every write endpoint in this service currently rejects `MERCHANT_STAFF`
+> tokens outright, confirmed live; that section spells out exactly what
+> needs to change.
+
 **Product photo and shop logo/cover upload is now implemented — via a
 private S3 bucket, not a multipart endpoint on this service.** This is a
 **breaking change from the previous revision of this doc**, which had it
@@ -80,6 +86,48 @@ service already issues. No new login/token mechanism.
   framework error page — if you see a `500` with no `code`/`message`
   fields at all going forward, that's worth flagging again, since it
   would mean something bypassed our error handling entirely.
+
+---
+
+## PROPOSED — `MERCHANT_STAFF` access to product endpoints (not yet implemented)
+
+**Confirmed live** (real staff account, real shop, real product): every
+write endpoint in this service currently returns `403 ACCESS_DENIED` for
+a `ROLE_MERCHANT_STAFF` token — `POST .../products`,
+`PATCH .../products/{id}`, `PATCH .../products/{id}/stock`,
+`PATCH .../products/{id}/active`, and `PATCH /merchant/shops/{shopId}`
+all rejected identically. Reads (`GET`) work fine for staff already.
+
+**The product ask**: `MERCHANT_STAFF` should have full read/write access to
+everything under `/merchant/shops/{shopId}/products/**` (create, edit,
+stock adjust, active toggle, photo upload/delete/set-primary) for the one
+shop they're assigned to — same permissions as `MERCHANT` there. They
+should **stay blocked** from shop-level writes: `PATCH /merchant/shops/{shopId}`,
+the logo/cover endpoints, `PATCH .../status`, `PUT .../hours`. (Staff
+management itself — `/merchant/staff/**` — isn't even this service's
+concern, it lives on the Security service and is already `MERCHANT`-only
+there.)
+
+**How to tell the two apart**: per
+`API_REFERENCE-security-service.md`'s `MERCHANT_STAFF` JWT claims, a staff
+access token carries a `shopId` claim (the one shop they're assigned to)
+alongside `roles: "ROLE_MERCHANT_STAFF"`. Proposed authorization rule for
+every endpoint in this service:
+
+- `ROLE_MERCHANT` + `{shopId}` in the path owned by `jwt.sub` → allowed
+  everywhere (unchanged, this already works).
+- `ROLE_MERCHANT_STAFF` + `{shopId}` in the path **equal to `jwt.shopId`**
+  → allowed on `/merchant/shops/{shopId}/products/**` (all methods) and
+  `/merchant/shops/{shopId}/dashboard/summary` (`GET`, already presumably
+  fine since it's a read). **Not** allowed on any other
+  `/merchant/shops/{shopId}/**` endpoint (profile, logo, cover, status,
+  hours) — those stay `MERCHANT`-only.
+- `ROLE_MERCHANT_STAFF` with a `{shopId}` in the path that **doesn't**
+  match their token's `shopId` claim → `403`/`404`, same as a non-owner
+  `MERCHANT` today.
+
+This doesn't require a call back to the Security service — the `shopId`
+claim already on the token is enough to decide the above locally.
 
 ---
 

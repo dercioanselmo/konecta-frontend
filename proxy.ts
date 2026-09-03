@@ -73,13 +73,7 @@ export async function proxy(request: NextRequest) {
     loginUrl.searchParams.set("next", pathname);
     response = NextResponse.redirect(loginUrl);
   } else {
-    const requestWithPathname = new Request(request, {
-      headers: new Headers({
-        ...Object.fromEntries(request.headers),
-        "x-pathname": pathname,
-      }),
-    });
-    response = NextResponse.next({ request: requestWithPathname });
+    response = NextResponse.next({ request });
   }
 
   if (refreshedTokens) {

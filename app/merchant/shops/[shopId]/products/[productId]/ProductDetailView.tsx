@@ -32,7 +32,7 @@ import { uploadAndConfirm } from "@/lib/stores/upload";
 import { ClientApiError } from "@/lib/auth/client";
 import type { Category, Photo, Product, Subcategory } from "@/lib/stores/types";
 
-export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: string; productId: string; hideStaff?: boolean }) {
+export function ProductDetailView({ shopId, productId }: { shopId: string; productId: string }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -40,6 +40,8 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [stockSaved, setStockSaved] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [busyPhotoId, setBusyPhotoId] = useState<string | null>(null);
@@ -92,6 +94,7 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
 
   const onSubmit = async (values: CreateProductFormValues) => {
     setActionError(null);
+    setSaved(false);
     try {
       const updated = await updateProduct(shopId, productId, {
         name: values.name,
@@ -103,6 +106,7 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
         active: values.active,
       });
       setProduct(updated);
+      setSaved(true);
     } catch (err) {
       setActionError(
         err instanceof ClientApiError ? (err.details?.join(" ") ?? err.message) : "Não foi possível guardar as alterações.",
@@ -126,9 +130,11 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
 
   const onStockSubmit = async ({ quantity }: StockAdjustFormValues) => {
     setActionError(null);
+    setStockSaved(false);
     try {
       const updated = await setProductStock(shopId, productId, quantity);
       setProduct(updated);
+      setStockSaved(true);
     } catch (err) {
       setActionError(err instanceof ClientApiError ? (err.details?.join(" ") ?? err.message) : "Não foi possível ajustar o stock.");
     }
@@ -237,6 +243,7 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
               Atualizar stock
             </Button>
           </form>
+        {stockSaved ? <p className="text-sm text-brand-green">Stock atualizado.</p> : null}
         <div className="flex-1" />
         <Button type="button" variant="secondary" className="w-auto px-5" disabled={actionBusy} onClick={toggleActive}>
             {product.active ? "Desativar produto" : "Ativar produto"}
@@ -363,6 +370,8 @@ export function ProductDetailView({ shopId, productId, hideStaff }: { shopId: st
           error={errors.lowStockThreshold?.message}
           {...register("lowStockThreshold", optionalNumberField)}
         />
+
+        {saved ? <p className="text-sm text-brand-green">Guardado com sucesso.</p> : null}
 
         <Button type="submit" loading={isSubmitting} className="mt-2 w-auto px-6">
             Guardar alterações

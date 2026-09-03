@@ -11,8 +11,118 @@
 ## Current feature: My Profile + mustChangePassword gate + Merchant Staff CRUD
 
 **Status: built by AmazonQ (a different agent) in a session I wasn't part
-of, then I fixed two reported bugs on top of it** — typecheck/lint/build
-clean.
+of, then three rounds of bug-fixing on top of it** — typecheck/lint/build
+clean, live-verified. **One known blocker remains and is 100% backend,
+not frontend** — see Round 3 below.
+
+### Round 3 — MERCHANT_STAFF can read but not write anything; entirely backend
+
+**Frontend cleanup**: `ProductDetailView.tsx` had a dead `hideStaff` prop
+(threaded in from `page.tsx`, never used — that page doesn't render
+`ShopNav`, the only consumer of `hideStaff` anywhere else). Removed from
+both the prop signature and the page.tsx caller. Confirmed via grep this
+was the only dead usage — every other `hideStaff` pass-through
+(`ShopSettingsForm`, `ProductsList`, `HoursForm`, `StaffList`, the
+`/merchant/shops/[shopId]` dashboard page) genuinely feeds `ShopNav`.
+
+**The reported bug ("MERCHANT_STAFF can't update products") is real, but
+it's not this codebase's bug — it's the Stores-and-Stock backend.**
+Verified live with a real staff account against a real shop/product:
+`GET` (list, detail, dashboard summary) all work fine for staff, but
+**every** write endpoint returns a genuine `403 ACCESS_DENIED` —
+`POST .../products`, `PATCH .../products/{id}`, `.../stock`,
+`.../active`, and (correctly, per the actual requirement)
+`PATCH /merchant/shops/{shopId}`. The backend currently has no concept of
+`MERCHANT_STAFF` on any write path at all — it's not "staff can edit shop
+but not products" or vice versa, it's "staff can't write *anything*,"
+which happens to look like "products don't work" from the UI since that's
+the thing staff actually try to do.
+
+**User's requirement, confirmed**: staff should have full read/write on
+products (create/edit/stock/active/photos) for their one assigned shop,
+but stay blocked from shop settings/logo/cover/hours and from staff
+management (which is Security service's endpoint, already correctly
+`MERCHANT`-only there).
+
+**Documented, not implemented** (nothing to implement — this is 100%
+backend authorization logic): added a new PROPOSED section to
+`API_REFERENCE_MERCHANT_DASHBOARD.md` — "MERCHANT_STAFF access to product
+endpoints" — spelling out the exact rule: a `MERCHANT_STAFF` JWT already
+carries a `shopId` claim (per `API_REFERENCE-security-service.md`); the
+Stores-and-Stock service should allow `ROLE_MERCHANT_STAFF` + matching
+`jwt.shopId` on `/merchant/shops/{shopId}/products/**` (all methods) and
+the dashboard summary read, while continuing to reject it everywhere else
+under `/merchant/shops/{shopId}/**`. No inter-service call needed — the
+claim already on the token is sufficient. **Nothing to build here until
+that lands** — don't attempt a frontend workaround (e.g. hiding the
+403 and pretending it worked) for a permission gap that only the backend
+can actually close.
+
+### Round 2 fixes — MERCHANT_STAFF login hung forever, plus two UX gaps
+
+**1. MERCHANT_STAFF login → `/merchant` never finished loading, dev log
+showed the same `GET /merchant/shops/{shopId}` 200 repeating forever.**
+Root cause: `MerchantShell` needed to know "is a staff user currently on
+the `/merchant` picker (redirect them to their one shop) or already on a
+sub-route (don't re-redirect)" — AmazonQ solved this by having `proxy.ts`
+reconstruct a **new** `Request` object (`new Request(request, { headers:
+new Headers({...Object.fromEntries(request.headers), "x-pathname":
+pathname}) })`) on every single matched request, just to smuggle the
+current pathname into a custom header for `MerchantShell` to read via
+`headers()`. This is fragile by construction — Next's client-side RSC
+navigation depends on specific internal headers (`RSC`,
+`Next-Router-State-Tree`, etc.) surviving untouched through proxy, and
+wholesale reconstructing the headers object on every request risked
+mangling them, which is consistent with the symptom: the browser's RSC
+fetch for the navigation never resolved cleanly, so the client kept
+retrying the same URL forever (curl-level testing showed the server side
+was always perfectly fine — one redirect, then stable 200s — the loop was
+a client no server issue, which is why it wouldn't show up as anything
+but 200s in the dev log).
+
+**Fix — delete the header-smuggling entirely, solve it where the route is
+unambiguous instead**: `app/merchant/page.tsx` (the shop-picker page)
+*is* the `/merchant` route by definition — no need to detect the
+pathname at all. Moved the "MERCHANT_STAFF → redirect to their one shop"
+logic there (`getCurrentUser()` + `redirect()` at the top of that page,
+before the shops-list fetch). `MerchantShell` no longer touches
+`headers()` at all — it only keeps `if (user.role === "MERCHANT_STAFF" &&
+!user.shopId) redirect("/login")` as a data-integrity guard, unrelated to
+pathname. `proxy.ts` reverted to the original simple
+`NextResponse.next({ request })` (no custom Request reconstruction, no
+`x-pathname`). **Lesson for next time**: don't thread ad-hoc request
+headers through `proxy.ts` to answer "what route am I on" — a page/layout
+file already knows that unambiguously from its own position in the file
+tree; reach for that first. Verified live end-to-end: created a real
+`MERCHANT_STAFF` account, logged in, confirmed the `mustChangePassword`
+gate fires first (307 → `/change-password`), completed it, then confirmed
+`/merchant` → exactly one 307 → `/merchant/shops/{shopId}` → stable
+repeated 200s, and that the shop dashboard correctly hides the
+"Funcionários" nav tab for staff.
+
+**2. No success feedback on save.** `ProductDetailView.tsx`'s main edit
+form and stock-adjust form, and `ShopSettingsForm.tsx`, called their
+update functions and updated local state on success but never told the
+user it worked — `ProfileForm.tsx` and `StaffDetailView.tsx` (both written
+by AmazonQ) already had this right (`saved`/`profileSuccess` boolean state
+→ green "Guardado com sucesso." text), it was specifically the
+pre-existing product/shop forms (mine, from before AmazonQ's session) that
+were missing it. Added the same `saved` state pattern to both.
+
+**3. No user avatar/name in the header.** Built `components/UserMenu.tsx`
+— a small Server Component (photo or initials-on-a-circle + first name,
+linking to `/profile`) — and wired it into `AdminShell`, `MerchantShell`
+(replacing the old plain "Perfil" text link in both), and `RoleLanding`
+(which had no profile link in its header at all before). Takes `user` as
+a prop — every shell already fetches it via `getCurrentUser()`, no extra
+fetch needed. Photo rendered via `next/image` with `unoptimized` (same
+reasoning as everywhere else `photoUrl` is rendered — presigned, expiring,
+per-request URLs, not something Next's image optimizer should cache).
+
+**Not yet investigated**: `ProductDetailView.tsx` still has an unused
+`hideStaff` prop (dead code from AmazonQ's build, harmless, lint warning
+only) — flagged to the user, not fixed, since it wasn't reported as
+broken and wasn't in scope of what was asked this round.
 
 ### Bug triage session (after AmazonQ's build) — what was actually wrong
 

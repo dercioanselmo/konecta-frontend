@@ -129,7 +129,15 @@ export default function AdminShopsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {s.ownerName} <span className="text-xs">({s.ownerEmail})</span>
+                    {s.ownerName ? (
+                      <>
+                        {s.ownerName} {s.ownerEmail ? <span className="text-xs">({s.ownerEmail})</span> : null}
+                      </>
+                    ) : (
+                      <span className="font-mono text-xs" title="Dados do proprietário indisponíveis">
+                        {s.ownerId}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone={statusTone(s.status)}>{s.status}</Badge>

@@ -163,7 +163,12 @@ export interface DashboardSummary {
   lowStockCount: number;
 }
 
-/** Row shown in the admin all-shops browser — GET /admin/shops. */
+/**
+ * Row shown in the admin all-shops browser — GET /admin/shops.
+ * `ownerName`/`ownerEmail` are currently always null — the Stores-and-Stock
+ * service has no user data and no client to the Security service to resolve
+ * them by `ownerId`. See API_REFERENCE_MERCHANT_DASHBOARD.md.
+ */
 export interface AdminShopSummary {
   id: string;
   name: string;
@@ -171,8 +176,8 @@ export interface AdminShopSummary {
   status: ShopStatus;
   isOpen: boolean;
   ownerId: string;
-  ownerName: string;
-  ownerEmail: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
   createdAt: string;
 }
 

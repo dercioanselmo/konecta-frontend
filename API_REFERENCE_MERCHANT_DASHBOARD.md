@@ -134,66 +134,67 @@ claim already on the token is enough to decide the above locally.
 
 ---
 
-## PROPOSED — Admin access to shop management (not yet implemented)
+## RESOLVED — Admin access to shop management
 
-**Ask**: the Admin panel now has a "Lojas" section where an Admin can
-browse every shop on the platform and manage any one of them with the
+**Ask** (unchanged): the Admin panel has a "Lojas" section where an Admin
+can browse every shop on the platform and manage any one of them with the
 same capabilities as its owning `MERCHANT` — dashboard, products
 (create/edit/stock/active/photos), opening hours, and shop settings
 (profile, logo, cover, pause/resume). Staff management is explicitly
-**out of scope** — Admins do not manage a shop's `MERCHANT_STAFF` roster.
+**out of scope**. Creating a new shop and `GET /merchant/shops` ("list my
+shops") deliberately stayed `MERCHANT`-only — correct, an Admin owns no
+shops.
 
-**Confirmed live** (real `ROLE_ADMIN` token): `GET /merchant/shops`
-(list) and `GET /merchant/shops/{shopId}` (an existing, real shop) both
-return `403 ACCESS_DENIED`. Admin currently has **zero** access to shop
-data on this service — this is not an ownership-bypass that merely needs
-widening, there is no bypass today despite the `MERCHANT_STAFF` section
-above having once assumed one existed.
+**Item 1 — widen the role gate on `/merchant/shops/**`: done, fully
+live-verified 2026-09-03** with a real `ROLE_ADMIN` JWT against a real
+shop (`14b4dbe9-d975-4d75-9bb7-39118dcd5828`, "Loja Real"):
+`GET /merchant/shops` (list) still correctly `403`s (merchant-only, as
+intended); `GET` on the shop profile, dashboard summary, product list,
+and hours all returned `200` with real data; `PATCH` on the shop profile
+(`description`) returned `200` and the change persisted. Root cause was
+the same class of bug as the earlier `MERCHANT_STAFF` gap — `@PreAuthorize`
+blocking before the existing admin-bypass logic in the `getOwned` service
+methods was ever reached. Automated suite has
+`admin_canManageAnyShopButNotCreateOne` passing (32/32) per backend.
+Note: the live `PATCH` above left a real, visible change on "Loja Real"'s
+`description` field ("Verificado via admin - live check 2026-09-03") —
+harmless test-data mutation, flagging in case it's confusing later.
 
-**What's needed**:
+**Item 2 — `GET /api/v1/admin/shops`: done, fully live-verified
+2026-09-03.** The earlier `500` was traced by backend to a stale process
+on `:8092` predating the feature (started before `AdminShopController`
+existed) — not a code bug. Against the restarted, current-code instance,
+all three original repro cases return `200` with real data (2 shops,
+correct pagination envelope, one row with a real presigned S3 logo URL).
+`ownerName`/`ownerEmail` come back `null` as documented/expected (no
+Security-service client wired up yet to resolve them from `ownerId`).
 
-1. **Widen the role gate on every existing `/merchant/shops/**` endpoint**
-   to also accept `ROLE_ADMIN`, bypassing the `jwt.sub == shop.ownerId`
-   ownership check entirely (an Admin isn't the owner of any shop, so the
-   check must be skipped for them, not matched against). This covers
-   shop profile/status/hours/logo/cover reads+writes and all product
-   endpoints, mirroring exactly what `ROLE_MERCHANT` can do on a shop
-   they own.
-2. **New endpoint**: `GET /api/v1/admin/shops` — `ROLE_ADMIN`-only,
-   returns **every** shop on the platform (not scoped to any owner),
-   paginated, with search/filter. Proposed shape, mirroring the existing
-   `GET /merchant/shops` list + the admin users list's query/paging
-   conventions:
+Response shape (confirmed live):
 
-   - Query params: `query` (name search), `status` (one of `ShopStatus`),
-     `page`, `size`, `sort` (e.g. `createdAt,desc`).
-   - Response: standard Spring `Page<T>` envelope (`content`, `page`,
-     `size`, `totalElements`, `totalPages`), where each row is:
+```json
+{
+  "content": [{
+    "id": "uuid",
+    "name": "string",
+    "logoUrl": "string | null",
+    "status": "DRAFT | PENDING_REVIEW | ACTIVE | SUSPENDED | CLOSED",
+    "isOpen": true,
+    "ownerId": "uuid",
+    "ownerName": "string | null",
+    "ownerEmail": "string | null",
+    "createdAt": "ISO-8601"
+  }],
+  "page": 0, "size": 20, "totalElements": 2, "totalPages": 1
+}
+```
 
-     ```json
-     {
-       "id": "uuid",
-       "name": "string",
-       "logoUrl": "string | null",
-       "status": "DRAFT | PENDING_REVIEW | ACTIVE | SUSPENDED | CLOSED",
-       "isOpen": true,
-       "ownerId": "uuid",
-       "ownerName": "string",
-       "ownerEmail": "string",
-       "createdAt": "ISO-8601"
-     }
-     ```
-
-   - `ownerName`/`ownerEmail` require either a join against the Security
-     service's user table or a call out to it — whichever this service
-     already does for other owner-facing data, if any; otherwise a
-     lightweight lookup by `ownerId` is acceptable.
-
-**Frontend status**: fully built and wired (`/admin/shops` list page,
-`/admin/shops/{shopId}` dashboard/products/hours/settings — reusing the
-exact same components as the Merchant dashboard). It will 403/404 until
-both items above ship; nothing further is needed on the frontend once
-they do.
+**Frontend status**: fully built, wired, and now live-verified end to
+end (`/admin/shops` list page, `/admin/shops/{shopId}` dashboard/products/hours/settings
+— reusing the exact same components as the Merchant dashboard), including
+graceful handling of the still-null owner fields (falls back to
+rendering the raw `ownerId`). **Feature is closed** — only remaining
+open item is the known/accepted `ownerName`/`ownerEmail` gap, which is
+not a blocker.
 
 ---
 

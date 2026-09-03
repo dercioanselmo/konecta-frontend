@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authApiFetch } from "@/lib/auth/authApi";
 import { decodeJwtPayload, isExpired, type AccessTokenClaims } from "@/lib/auth/jwt";
-import { ROLE_PROTECTED_PREFIXES } from "@/lib/auth/roles";
+import { ROLE_PROTECTED_PREFIXES, AUTH_REQUIRED_PREFIXES } from "@/lib/auth/roles";
 import type { TokenResponse } from "@/lib/auth/types";
 
 const ACCESS_COOKIE = "konecta_access_token";
@@ -23,6 +23,7 @@ export const config = {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const protectedMatch = ROLE_PROTECTED_PREFIXES.find((entry) => pathname.startsWith(entry.prefix));
+  const authRequired = AUTH_REQUIRED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
   const rawAccessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
@@ -67,7 +68,7 @@ export async function proxy(request: NextRequest) {
   // enforces "is there a session at all"; the pages are the sole authority
   // on "is it the right role."
   let response: NextResponse;
-  if (protectedMatch && !accessToken) {
+  if ((protectedMatch || authRequired) && !accessToken) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     response = NextResponse.redirect(loginUrl);

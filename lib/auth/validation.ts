@@ -58,3 +58,27 @@ export const setPasswordSchema = z
   });
 
 export type SetPasswordFormValues = z.infer<typeof setPasswordSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Indique a palavra-passe atual"),
+    newPassword: z.string().min(8, "A nova palavra-passe deve ter pelo menos 8 caracteres"),
+    confirmPassword: z.string().min(1, "Confirme a nova palavra-passe"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "As palavras-passe não coincidem",
+    path: ["confirmPassword"],
+  });
+
+export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+
+export const editProfileSchema = z.object({
+  firstName: z.string().min(1, "Indique o primeiro nome"),
+  lastName: z.string().min(1, "Indique o último nome"),
+  phone: z.string().regex(phoneRegex, "Número de telefone moçambicano inválido"),
+  address: z.string().min(1, "Indique o endereço"),
+  city: z.literal("Maputo"),
+  neighborhood: z.string().min(1, "Selecione o bairro"),
+});
+
+export type EditProfileFormValues = z.infer<typeof editProfileSchema>;

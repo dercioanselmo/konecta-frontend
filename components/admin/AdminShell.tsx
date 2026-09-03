@@ -4,13 +4,14 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
 import { getCurrentUser } from "@/lib/auth/session";
-import { isProfileComplete } from "@/lib/auth/profile";
+import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
 import { roleHomePath } from "@/lib/auth/roles";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin");
   if (!isProfileComplete(user)) redirect("/complete-profile");
+  if (mustChangePassword(user)) redirect("/change-password");
   if (user.role !== "ADMIN") redirect(roleHomePath(user.role));
 
   return (
@@ -22,6 +23,9 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          <Link href="/profile" className="text-sm font-medium text-muted hover:text-foreground">
+            Perfil
+          </Link>
           <LogoutButton />
         </div>
       </header>

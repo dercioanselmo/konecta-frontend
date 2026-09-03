@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
 import { getCurrentUser } from "@/lib/auth/session";
-import { isProfileComplete } from "@/lib/auth/profile";
+import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
 import { roleHomePath } from "@/lib/auth/roles";
 import { ROLE_LABELS } from "@/lib/auth/roleLabels";
 import type { Role } from "@/lib/auth/types";
@@ -13,6 +13,7 @@ export async function RoleLanding({ role, title }: { role: Role; title: string }
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${roleHomePath(role)}`);
   if (!isProfileComplete(user)) redirect("/complete-profile");
+  if (mustChangePassword(user)) redirect("/change-password");
   if (user.role !== role) redirect(roleHomePath(user.role));
 
   return (

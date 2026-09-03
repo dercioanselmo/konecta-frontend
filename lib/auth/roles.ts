@@ -9,6 +9,9 @@ export const ROLE_HOME: Record<Role, string> = {
   // Reserved role, no dashboard yet — send to splash rather than looping
   // into a role-gated page it can't pass.
   MOBILITY_PARTNER: "/",
+  // Staff land on the merchant shell scoped to their shop.
+  // shopId isn't known here — MerchantStaffShell resolves it from the JWT.
+  MERCHANT_STAFF: "/merchant",
 };
 
 /** Route prefixes that require a specific role, most specific first. */
@@ -18,6 +21,9 @@ export const ROLE_PROTECTED_PREFIXES: { prefix: string; role: Role }[] = [
   { prefix: "/admin", role: "ADMIN" },
   { prefix: "/home", role: "CUSTOMER" },
 ];
+
+/** Paths that require authentication but no specific role (any logged-in user). */
+export const AUTH_REQUIRED_PREFIXES = ["/profile", "/change-password"];
 
 export function roleHomePath(role: Role): string {
   return ROLE_HOME[role] ?? "/home";

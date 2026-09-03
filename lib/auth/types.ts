@@ -1,4 +1,4 @@
-export type Role = "CUSTOMER" | "MERCHANT" | "COURIER" | "ADMIN" | "MOBILITY_PARTNER";
+export type Role = "CUSTOMER" | "MERCHANT" | "COURIER" | "ADMIN" | "MOBILITY_PARTNER" | "MERCHANT_STAFF";
 
 /** A role a CUSTOMER may self-request at registration, pending admin approval. */
 export type RequestableRole = "MERCHANT" | "COURIER" | "MOBILITY_PARTNER";
@@ -24,6 +24,14 @@ export interface UserProfile {
   phoneVerified: boolean;
   /** Independent of status — suspend/restore, orthogonal to the approval workflow. */
   enabled: boolean;
+  /** Set only for MERCHANT_STAFF — the shop they belong to. */
+  shopId?: string | null;
+  /** Set only for MERCHANT_STAFF — the MERCHANT user id who created this account. */
+  ownerId?: string | null;
+  /** true for merchant-created staff until they complete change-password. */
+  mustChangePassword: boolean;
+  /** Profile photo URL — set via PATCH /api/v1/users/me. */
+  photoUrl?: string | null;
   createdAt: string;
 }
 

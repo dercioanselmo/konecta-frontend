@@ -74,10 +74,45 @@ export interface CompleteProfilePayload {
   address: string;
   city: string;
   neighborhood: string;
+  photoUrl?: string;
 }
 
 export function completeProfile(payload: CompleteProfilePayload) {
   return sendJson<UserProfile>("/api/auth/profile", "PATCH", payload);
+}
+
+export function updateProfile(payload: CompleteProfilePayload) {
+  return sendJson<UserProfile>("/api/auth/profile", "PATCH", payload);
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return sendJson<UserProfile>("/api/auth/change-password", "POST", { currentPassword, newPassword });
+}
+
+export async function presignUserPhoto(contentType: string): Promise<{ uploadUrl: string; key: string; expiresAt: string }> {
+  const res = await fetch("/api/users/photo/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contentType }),
+  });
+  if (!res.ok) {
+    const body: ApiErrorBody = await res.json().catch(() => ({ code: "UNKNOWN_ERROR", message: "Erro ao preparar upload." }));
+    throw new ClientApiError(res.status, body);
+  }
+  return res.json();
+}
+
+export async function confirmUserPhoto(key: string): Promise<{ url: string }> {
+  const res = await fetch("/api/users/photo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key }),
+  });
+  if (!res.ok) {
+    const body: ApiErrorBody = await res.json().catch(() => ({ code: "UNKNOWN_ERROR", message: "Erro ao confirmar upload." }));
+    throw new ClientApiError(res.status, body);
+  }
+  return res.json();
 }
 
 export async function logout() {
@@ -103,4 +138,5 @@ export const ROLE_HOME_CLIENT: Record<Role, string> = {
   COURIER: "/courier",
   ADMIN: "/admin",
   MOBILITY_PARTNER: "/",
+  MERCHANT_STAFF: "/merchant",
 };

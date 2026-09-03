@@ -8,3 +8,12 @@ const REQUIRED_PROFILE_FIELDS = ["firstName", "lastName", "phone", "address", "n
 export function isProfileComplete(user: UserProfile): boolean {
   return REQUIRED_PROFILE_FIELDS.every((field) => Boolean(user[field]?.trim()));
 }
+
+/**
+ * MERCHANT_STAFF accounts have mustChangePassword: true on first login.
+ * Gate them behind /change-password before they can use the app.
+ * Same pattern as isProfileComplete / /complete-profile.
+ */
+export function mustChangePassword(user: UserProfile): boolean {
+  return user.mustChangePassword === true;
+}

@@ -29,6 +29,12 @@ export function ShopNav({ shopId, shopName }: { shopId: string; shopName: string
           Horário
         </Link>
         <Link
+          href={`/merchant/shops/${shopId}/staff`}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
+        >
+          Funcionários
+        </Link>
+        <Link
           href={`/merchant/shops/${shopId}/settings`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >

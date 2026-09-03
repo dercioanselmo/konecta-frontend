@@ -6,6 +6,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   COURIER: "Entregador",
   ADMIN: "Administrador",
   MOBILITY_PARTNER: "Parceiro de Mobilidade",
+  MERCHANT_STAFF: "Funcionário",
 };
 
 // Roles a CUSTOMER may self-request at registration (requestedRole), subject

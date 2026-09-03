@@ -13,7 +13,13 @@ import { createProduct, listCategories, listSubcategories } from "@/lib/stores/c
 import { ClientApiError } from "@/lib/auth/client";
 import type { Category, Subcategory } from "@/lib/stores/types";
 
-export function NewProductForm({ shopId }: { shopId: string }) {
+export function NewProductForm({
+  shopId,
+  basePath = "/merchant/shops",
+}: {
+  shopId: string;
+  basePath?: string;
+}) {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -50,7 +56,7 @@ export function NewProductForm({ shopId }: { shopId: string }) {
         lowStockThreshold: values.lowStockThreshold,
         active: values.active,
       });
-      router.push(`/merchant/shops/${shopId}/products/${product.id}`);
+      router.push(`${basePath}/${shopId}/products/${product.id}`);
     } catch (error) {
       setFormError(
         error instanceof ClientApiError
@@ -63,7 +69,7 @@ export function NewProductForm({ shopId }: { shopId: string }) {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
       <div>
-        <Link href={`/merchant/shops/${shopId}/products`} className="text-sm text-muted hover:underline">
+        <Link href={`${basePath}/${shopId}/products`} className="text-sm text-muted hover:underline">
           ← Produtos
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-foreground">Novo produto</h1>

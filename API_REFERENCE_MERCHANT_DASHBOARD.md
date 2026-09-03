@@ -89,7 +89,10 @@ service already issues. No new login/token mechanism.
 
 ---
 
-## PROPOSED — `MERCHANT_STAFF` access to product endpoints (not yet implemented)
+## RESOLVED — `MERCHANT_STAFF` access to product endpoints
+
+**Fixed on the backend** (per merchant confirmation, 2026-09-02) — leaving
+the original write-up below for reference.
 
 **Confirmed live** (real staff account, real shop, real product): every
 write endpoint in this service currently returns `403 ACCESS_DENIED` for
@@ -128,6 +131,69 @@ every endpoint in this service:
 
 This doesn't require a call back to the Security service — the `shopId`
 claim already on the token is enough to decide the above locally.
+
+---
+
+## PROPOSED — Admin access to shop management (not yet implemented)
+
+**Ask**: the Admin panel now has a "Lojas" section where an Admin can
+browse every shop on the platform and manage any one of them with the
+same capabilities as its owning `MERCHANT` — dashboard, products
+(create/edit/stock/active/photos), opening hours, and shop settings
+(profile, logo, cover, pause/resume). Staff management is explicitly
+**out of scope** — Admins do not manage a shop's `MERCHANT_STAFF` roster.
+
+**Confirmed live** (real `ROLE_ADMIN` token): `GET /merchant/shops`
+(list) and `GET /merchant/shops/{shopId}` (an existing, real shop) both
+return `403 ACCESS_DENIED`. Admin currently has **zero** access to shop
+data on this service — this is not an ownership-bypass that merely needs
+widening, there is no bypass today despite the `MERCHANT_STAFF` section
+above having once assumed one existed.
+
+**What's needed**:
+
+1. **Widen the role gate on every existing `/merchant/shops/**` endpoint**
+   to also accept `ROLE_ADMIN`, bypassing the `jwt.sub == shop.ownerId`
+   ownership check entirely (an Admin isn't the owner of any shop, so the
+   check must be skipped for them, not matched against). This covers
+   shop profile/status/hours/logo/cover reads+writes and all product
+   endpoints, mirroring exactly what `ROLE_MERCHANT` can do on a shop
+   they own.
+2. **New endpoint**: `GET /api/v1/admin/shops` — `ROLE_ADMIN`-only,
+   returns **every** shop on the platform (not scoped to any owner),
+   paginated, with search/filter. Proposed shape, mirroring the existing
+   `GET /merchant/shops` list + the admin users list's query/paging
+   conventions:
+
+   - Query params: `query` (name search), `status` (one of `ShopStatus`),
+     `page`, `size`, `sort` (e.g. `createdAt,desc`).
+   - Response: standard Spring `Page<T>` envelope (`content`, `page`,
+     `size`, `totalElements`, `totalPages`), where each row is:
+
+     ```json
+     {
+       "id": "uuid",
+       "name": "string",
+       "logoUrl": "string | null",
+       "status": "DRAFT | PENDING_REVIEW | ACTIVE | SUSPENDED | CLOSED",
+       "isOpen": true,
+       "ownerId": "uuid",
+       "ownerName": "string",
+       "ownerEmail": "string",
+       "createdAt": "ISO-8601"
+     }
+     ```
+
+   - `ownerName`/`ownerEmail` require either a join against the Security
+     service's user table or a call out to it — whichever this service
+     already does for other owner-facing data, if any; otherwise a
+     lightweight lookup by `ownerId` is acceptable.
+
+**Frontend status**: fully built and wired (`/admin/shops` list page,
+`/admin/shops/{shopId}` dashboard/products/hours/settings — reusing the
+exact same components as the Merchant dashboard). It will 403/404 until
+both items above ship; nothing further is needed on the frontend once
+they do.
 
 ---
 

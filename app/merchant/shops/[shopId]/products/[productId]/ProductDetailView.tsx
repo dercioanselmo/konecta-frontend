@@ -32,7 +32,15 @@ import { uploadAndConfirm } from "@/lib/stores/upload";
 import { ClientApiError } from "@/lib/auth/client";
 import type { Category, Photo, Product, Subcategory } from "@/lib/stores/types";
 
-export function ProductDetailView({ shopId, productId }: { shopId: string; productId: string }) {
+export function ProductDetailView({
+  shopId,
+  productId,
+  basePath = "/merchant/shops",
+}: {
+  shopId: string;
+  productId: string;
+  basePath?: string;
+}) {
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -202,7 +210,7 @@ export function ProductDetailView({ shopId, productId }: { shopId: string; produ
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <Link href={`/merchant/shops/${shopId}/products`} className="text-sm text-muted hover:underline">
+        <Link href={`${basePath}/${shopId}/products`} className="text-sm text-muted hover:underline">
           ← Produtos
         </Link>
         <p className="text-sm text-red-500">{loadError}</p>
@@ -217,7 +225,7 @@ export function ProductDetailView({ shopId, productId }: { shopId: string; produ
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/merchant/shops/${shopId}/products`} className="text-sm text-muted hover:underline">
+        <Link href={`${basePath}/${shopId}/products`} className="text-sm text-muted hover:underline">
           ← Produtos
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">

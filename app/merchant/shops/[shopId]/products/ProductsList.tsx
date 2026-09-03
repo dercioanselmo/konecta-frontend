@@ -12,7 +12,21 @@ import type { Product } from "@/lib/stores/types";
 
 const PAGE_SIZE = 20;
 
-export function ProductsList({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
+interface ProductsListProps {
+  shopId: string;
+  hideStaff?: boolean;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function ProductsList({
+  shopId,
+  hideStaff,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: ProductsListProps) {
   const [shopName, setShopName] = useState("Loja");
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
@@ -77,12 +91,19 @@ export function ProductsList({ shopId, hideStaff }: { shopId: string; hideStaff?
 
   return (
     <div className="flex flex-col gap-5">
-      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
+      <ShopNav
+        shopId={shopId}
+        shopName={shopName}
+        hideStaff={hideStaff}
+        basePath={basePath}
+        listHref={listHref}
+        listLabel={listLabel}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Produtos</h2>
                 <Link
-            href={`/merchant/shops/${shopId}/products/new`}
+            href={`${basePath}/${shopId}/products/new`}
             className="flex h-10 items-center justify-center rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
           >
             Novo produto
@@ -146,7 +167,7 @@ export function ProductsList({ shopId, hideStaff }: { shopId: string; hideStaff?
                 <tr key={p.id}>
                   <td className="px-4 py-3">
                     <Link
-                      href={`/merchant/shops/${shopId}/products/${p.id}`}
+                      href={`${basePath}/${shopId}/products/${p.id}`}
                       className="font-medium text-foreground hover:underline"
                     >
                       {p.name}
@@ -175,7 +196,7 @@ export function ProductsList({ shopId, hideStaff }: { shopId: string; hideStaff?
                           {p.active ? "Desativar" : "Ativar"}
                         </button>
                       <Link
-                        href={`/merchant/shops/${shopId}/products/${p.id}`}
+                        href={`${basePath}/${shopId}/products/${p.id}`}
                         className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground"
                       >
                         Editar

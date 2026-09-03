@@ -24,7 +24,21 @@ import { ClientApiError, fetchNeighborhoods } from "@/lib/auth/client";
 import type { Category, Shop } from "@/lib/stores/types";
 import type { Neighborhood } from "@/lib/auth/types";
 
-export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
+interface ShopSettingsFormProps {
+  shopId: string;
+  hideStaff?: boolean;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function ShopSettingsForm({
+  shopId,
+  hideStaff,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: ShopSettingsFormProps) {
   const [shop, setShop] = useState<Shop | null>(null);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -147,7 +161,7 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName="Loja" hideStaff={hideStaff} />
+        <ShopNav shopId={shopId} shopName="Loja" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );
@@ -159,7 +173,7 @@ export function ShopSettingsForm({ shopId, hideStaff }: { shopId: string; hideSt
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName={shop.name} hideStaff={hideStaff} />
+      <ShopNav shopId={shopId} shopName={shop.name} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
         <Badge tone={shop.manuallyClosed ? "danger" : "success"}>

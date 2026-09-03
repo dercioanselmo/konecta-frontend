@@ -23,7 +23,21 @@ function normalizeDays(days: OpeningHoursDay[]): OpeningHoursDay[] {
   return days.map((d) => ({ ...d, opensAt: toInputTime(d.opensAt), closesAt: toInputTime(d.closesAt) }));
 }
 
-export function HoursForm({ shopId, hideStaff }: { shopId: string; hideStaff?: boolean }) {
+interface HoursFormProps {
+  shopId: string;
+  hideStaff?: boolean;
+  basePath?: string;
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function HoursForm({
+  shopId,
+  hideStaff,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: HoursFormProps) {
   const [shopName, setShopName] = useState("Loja");
   const [days, setDays] = useState<OpeningHoursDay[]>(defaultDays());
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -71,7 +85,7 @@ export function HoursForm({ shopId, hideStaff }: { shopId: string; hideStaff?: b
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
+        <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );
@@ -79,7 +93,7 @@ export function HoursForm({ shopId, hideStaff }: { shopId: string; hideStaff?: b
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-3">
         {days.map((d, i) => (

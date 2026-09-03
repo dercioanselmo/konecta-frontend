@@ -163,6 +163,27 @@ export interface DashboardSummary {
   lowStockCount: number;
 }
 
+/** Row shown in the admin all-shops browser — GET /admin/shops. */
+export interface AdminShopSummary {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  status: ShopStatus;
+  isOpen: boolean;
+  ownerId: string;
+  ownerName: string;
+  ownerEmail: string;
+  createdAt: string;
+}
+
+export interface AdminShopsQuery {
+  query?: string;
+  status?: ShopStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
 export interface PageResponse<T> {
   content: T[];
   page: number;

@@ -3,6 +3,8 @@
 import type { ApiErrorBody } from "@/lib/auth/types";
 import { ClientApiError } from "@/lib/auth/client";
 import type {
+  AdminShopSummary,
+  AdminShopsQuery,
   Category,
   CreateProductPayload,
   CreateShopPayload,
@@ -181,4 +183,15 @@ export function presignShopCover(shopId: string, contentType: string): Promise<P
 
 export function confirmShopCover(shopId: string, key: string): Promise<Shop> {
   return request(`/api/merchant/shops/${shopId}/cover`, { method: "POST", body: JSON.stringify({ key }) });
+}
+
+// Admin-only: browse every shop on the platform, not just the caller's own.
+export function listAllShops(query: AdminShopsQuery): Promise<PageResponse<AdminShopSummary>> {
+  const params = new URLSearchParams();
+  if (query.query) params.set("query", query.query);
+  if (query.status) params.set("status", query.status);
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+  if (query.sort) params.set("sort", query.sort);
+  return request(`/api/admin/shops?${params.toString()}`);
 }

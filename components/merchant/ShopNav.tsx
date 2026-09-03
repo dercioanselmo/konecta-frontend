@@ -2,44 +2,62 @@
 
 import Link from "next/link";
 
-export function ShopNav({ shopId, shopName, hideStaff }: { shopId: string; shopName: string; hideStaff?: boolean }) {
+interface ShopNavProps {
+  shopId: string;
+  shopName: string;
+  hideStaff?: boolean;
+  /** Prefix before `/${shopId}/...` for every shop-scoped link. */
+  basePath?: string;
+  /** Where "← back" goes — the shop list this shop was opened from. */
+  listHref?: string;
+  listLabel?: string;
+}
+
+export function ShopNav({
+  shopId,
+  shopName,
+  hideStaff,
+  basePath = "/merchant/shops",
+  listHref = "/merchant",
+  listLabel = "As suas lojas",
+}: ShopNavProps) {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <Link href="/merchant" className="text-sm text-muted hover:underline">
-          ← As suas lojas
+        <Link href={listHref} className="text-sm text-muted hover:underline">
+          ← {listLabel}
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-foreground">{shopName}</h1>
       </div>
       <nav className="flex flex-wrap gap-2 border-b border-border pb-2">
         <Link
-          href={`/merchant/shops/${shopId}`}
+          href={`${basePath}/${shopId}`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >
           Painel
         </Link>
         <Link
-          href={`/merchant/shops/${shopId}/products`}
+          href={`${basePath}/${shopId}/products`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >
           Produtos
         </Link>
         <Link
-          href={`/merchant/shops/${shopId}/hours`}
+          href={`${basePath}/${shopId}/hours`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >
           Horário
         </Link>
         {!hideStaff ? (
           <Link
-            href={`/merchant/shops/${shopId}/staff`}
+            href={`${basePath}/${shopId}/staff`}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
           >
             Funcionários
           </Link>
         ) : null}
         <Link
-          href={`/merchant/shops/${shopId}/settings`}
+          href={`${basePath}/${shopId}/settings`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >
           Definições

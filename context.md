@@ -444,3 +444,10 @@ overridden: staff should be visible/manageable by Admin too, matching
 - **Fix**: added a `hasSavedHours` flag, `true` only when real 7-day data was loaded from the backend, `false` when falling back to the default. When `false`, a visible orange banner now reads "Esta loja ainda não tem horário guardado — a loja aparece como fechada até guardar. Os valores abaixo são apenas uma sugestão; reveja-os e clique em 'Guardar horário'." Flips to `true` immediately on a successful save. Since `HoursForm` is shared between the Merchant and Admin routes (`basePath` pattern), this fix applies to both automatically, no separate change needed.
 - Fixed the two already-affected test shops directly via the backend while diagnosing (both now have real saved hours and correctly show `isOpen: true`).
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 14b: Category badge on the shop dashboard's Painel tab (2026-09-04)
+
+- User still doesn't see the category badge on `/merchant`'s shop-picker boxes — expected, that one depends on backend adding `categories` to `GET /merchant/shops` (proposed in Round 13, no urgency, likely not shipped yet — couldn't verify live myself, no merchant-role test credentials on hand and Admin can't call that owner-scoped endpoint by design). Also asked for the same badge inside a shop's own dashboard (the "Painel" tab), which needed **no backend wait** — `components/merchant/ShopDashboard.tsx` already fetches the full `Shop` object via the single-shop `GET`, which has always included `categories`.
+- Added `shop.categories.map(...)` as additional `Badge`s in the existing status-badge row (next to ACTIVE/Aberta). Since `ShopDashboard` is shared between the Merchant and Admin routes, this applies to both automatically — same reuse pattern as the Round 14 hours fix.
+- Live-verified through the real running app: `/admin/shops/{id}` for "Moda Zambeze" now renders a "Moda" badge on the Painel tab.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.

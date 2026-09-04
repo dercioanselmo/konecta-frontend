@@ -55,6 +55,11 @@ export async function ShopDashboard({
           {shop.status}
         </Badge>
         <Badge tone={shop.isOpen ? "success" : "neutral"}>{shop.isOpen ? "Aberta" : "Fechada"}</Badge>
+        {shop.categories.map((c) => (
+          <Badge key={c.id} tone="neutral">
+            {c.name}
+          </Badge>
+        ))}
         {!shop.activationReady ? (
           <span className="text-xs text-muted">Complete os dados fiscais em Definições para ativar a loja.</span>
         ) : null}

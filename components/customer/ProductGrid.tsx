@@ -87,13 +87,22 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
                 )}
               </div>
               <p className="truncate px-1.5 pt-1.5 text-[11px] font-medium text-foreground">{p.name}</p>
+              {p.price != null ? (
+                <p className="px-1.5 text-[11px] text-muted">{p.price.toFixed(2)} MT</p>
+              ) : null}
               <button
                 type="button"
-                disabled={pendingId === p.id}
+                disabled={pendingId === p.id || p.inStock === false}
                 onClick={() => attemptAdd(p.id)}
                 className="m-1.5 mt-1 flex h-7 items-center justify-center rounded-lg bg-brand-green text-[11px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-60"
               >
-                {addedId === p.id ? "Adicionado ✓" : pendingId === p.id ? "…" : "Adicionar"}
+                {p.inStock === false
+                  ? "Esgotado"
+                  : addedId === p.id
+                    ? "Adicionado ✓"
+                    : pendingId === p.id
+                      ? "…"
+                      : "Adicionar"}
               </button>
             </div>
           ))}

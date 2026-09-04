@@ -1,4 +1,5 @@
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import { SearchBar } from "@/components/customer/SearchBar";
 import { ProductGrid } from "@/components/customer/ProductGrid";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -32,7 +33,10 @@ export default async function StoreSubcategoryProductsPage({
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref={`/stores/${storeId}`} backLabel="← Categorias" showCart={!!user} />
+      <CustomerHeader user={user} backHref={`/stores/${storeId}`} backLabel="← Categorias" />
+      <div className="mt-3">
+        <SearchBar />
+      </div>
 
       <h1 className="mt-4 text-2xl font-bold text-foreground">{subcategory?.name ?? "Produtos"}</h1>
       {shop ? <p className="text-sm text-muted">{shop.name}</p> : null}

@@ -7,8 +7,9 @@ import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { useCart } from "@/lib/cart/useCart";
 import { updateCartItemQuantity, removeCartItem, CartApiError } from "@/lib/cart/client";
 import type { CartItem } from "@/lib/cart/types";
+import type { UserProfile } from "@/lib/auth/types";
 
-export function CartView() {
+export function CartView({ user }: { user: UserProfile }) {
   const { cart, isLoading, refresh } = useCart();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +31,22 @@ export function CartView() {
     }
   };
 
+  const removeItem = async (item: CartItem) => {
+    setError(null);
+    setBusyId(item.id);
+    try {
+      await removeCartItem(item.id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof CartApiError ? err.message : "Não foi possível remover o produto.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref="/home" backLabel="← Continuar a comprar" showCart />
+      <CustomerHeader user={user} backHref="/home" backLabel="← Continuar a comprar" />
       <h1 className="mt-4 text-2xl font-bold text-foreground">Carrinho</h1>
 
       {isLoading ? (
@@ -104,6 +118,17 @@ export function CartView() {
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground disabled:opacity-60"
                       >
                         +
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === item.id}
+                        onClick={() => removeItem(item)}
+                        aria-label="Remover produto"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-red-500 disabled:opacity-60"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-4 w-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 .8 12.2A2 2 0 0 0 8.8 21h6.4a2 2 0 0 0 2-1.8L18 7M10 11v6M14 11v6" />
+                        </svg>
                       </button>
                     </div>
                     {item.lineTotal != null ? (

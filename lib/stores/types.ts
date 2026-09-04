@@ -64,12 +64,18 @@ export interface PublicShop {
 
 /**
  * Row on the customer-facing "products in this shop/subcategory" grid.
- * PROPOSED — no public shop-products endpoint exists yet.
+ * `price`/`inStock` are PROPOSED — not returned yet, see
+ * API_REFERENCE_MERCHANT_DASHBOARD.md's "price/stock on the public
+ * shop-products list" section. Optional so this type stays correct
+ * either way; the UI just hides price and can't pre-disable an
+ * out-of-stock Add button until they ship.
  */
 export interface PublicProduct {
   id: string;
   name: string;
   photoUrl: string | null;
+  price?: number | null;
+  inStock?: boolean;
 }
 
 export interface Subcategory {

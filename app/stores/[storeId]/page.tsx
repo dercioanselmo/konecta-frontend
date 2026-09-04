@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import { SearchBar } from "@/components/customer/SearchBar";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import { getCurrentUser } from "@/lib/auth/session";
 import { ApiError } from "@/lib/auth/types";
@@ -27,7 +28,10 @@ export default async function StorePage({ params }: PageProps<"/stores/[storeId]
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref="/home" backLabel="← Categorias" showCart={!!user} />
+      <CustomerHeader user={user} backHref="/home" backLabel="← Categorias" />
+      <div className="mt-3">
+        <SearchBar />
+      </div>
 
       {loadError || !shop ? (
         <p className="mt-6 text-sm text-red-500">{loadError ?? "Loja não encontrada."}</p>

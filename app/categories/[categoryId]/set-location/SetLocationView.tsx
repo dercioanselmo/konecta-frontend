@@ -10,7 +10,7 @@ export function SetLocationView({ user, categoryId }: { user: UserProfile; categ
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <CustomerHeader showCart />
+      <CustomerHeader user={user} />
 
       <div className="mt-4 flex flex-col items-center gap-2 text-center">
         <h1 className="text-xl font-bold text-foreground">Falta só uma coisa</h1>

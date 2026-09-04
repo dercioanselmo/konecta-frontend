@@ -6,5 +6,5 @@ export default async function CartPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/cart");
 
-  return <CartView />;
+  return <CartView user={user} />;
 }

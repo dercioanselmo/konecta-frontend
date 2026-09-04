@@ -33,7 +33,7 @@ export default async function CategoryAccessPage({ params }: PageProps<"/categor
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <CustomerHeader />
+      <CustomerHeader user={null} />
 
       <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         {category?.imageUrl ? (

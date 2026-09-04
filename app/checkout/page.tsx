@@ -8,7 +8,7 @@ export default async function CheckoutPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <CustomerHeader backHref="/cart" backLabel="← Carrinho" showCart />
+      <CustomerHeader user={user} backHref="/cart" backLabel="← Carrinho" />
 
       <main className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <h1 className="text-xl font-bold text-foreground">Finalização de compra</h1>

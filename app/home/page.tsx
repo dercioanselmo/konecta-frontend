@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { CartBadge } from "@/components/customer/CartBadge";
+import { SearchBar } from "@/components/customer/SearchBar";
 import { getCurrentUser } from "@/lib/auth/session";
 import { roleHomePath } from "@/lib/auth/roles";
 import { storesApiFetch } from "@/lib/stores/storesApi";
@@ -56,13 +57,7 @@ export default async function CustomerHomePage() {
       </div>
 
       <div className="mt-3">
-        <div className="flex h-12 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-muted">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-4.5 w-4.5 shrink-0">
-            <circle cx="11" cy="11" r="7" />
-            <path strokeLinecap="round" d="m20 20-3.5-3.5" />
-          </svg>
-          <span className="text-sm">O que procura hoje?</span>
-        </div>
+        <SearchBar />
       </div>
 
       <main className="mt-8 flex flex-1 flex-col gap-4">

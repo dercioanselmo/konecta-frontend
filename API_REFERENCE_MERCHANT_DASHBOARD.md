@@ -845,6 +845,62 @@ context, not repeated in two places.)
 
 ---
 
+## RESOLVED — `price`/`inStock` on the public shop-products list
+
+**Done, live-verified 2026-09-05** — both fields exactly as proposed.
+Confirmed directly against the backend (real prices matching what the
+Cart service independently resolves for the same products, e.g.
+"Camisa Social" at 1319.50 MT both places; a genuine `inStock: false`
+row found — "Bota de Cano Alto") and through the actual running frontend
+app (the same real data flowing correctly into `ProductGrid`'s props).
+
+**One mechanism note from backend worth keeping in mind**:
+`ProductStatus.OUT_OF_STOCK` is never actually assigned anywhere in this
+codebase — nothing transitions a product to it based on stock level. A
+zero-stock product stays `status == ACTIVE` and still appears in the
+listing as normal; `inStock: false` is the *only* signal for "disable
+Adicionar" — there's no separate out-of-stock status to also check.
+Already exactly what the frontend does; flagging so it's not a surprise
+later if an actual `OUT_OF_STOCK` status transition is ever looked for —
+it doesn't exist yet.
+
+Leaving the original proposal below for reference.
+
+## WITHDRAWN (superseded above) — `price`/`inStock` on the public shop-products list (2026-09-05)
+
+**Ask**: product boxes on the customer browsing grid
+(`/stores/{id}/subcategories/{id}`) need to show price, and disable
+"Adicionar" for an out-of-stock product **before** the customer tries
+to add it — right now the only way to discover either is the Cart
+service's `409 INSUFFICIENT_STOCK` after attempting to add, which is a
+worse experience than just not offering it. Explicitly **not** asking
+for a raw stock count/quantity to be shown — just enough to disable the
+button, nothing that reads like "3 left" pressure-selling.
+
+`GET /api/v1/shops/{shopId}/products` currently returns only
+`{ id, name, photoUrl }`. Proposed addition, same row:
+
+```json
+{ "id": "uuid", "name": "string", "photoUrl": "string | null", "price": 350.0, "inStock": true }
+```
+
+- `price` — decimal, IVA-inclusive, matching `Product.price`. (This
+  revives the Round 16 ask that was withdrawn once the real Cart service
+  turned out not to need it — different reason this time: browsing
+  display, not cart computation.)
+- `inStock` — boolean, `true` if `stockQuantity > 0`. Deliberately not
+  the raw quantity.
+
+**Frontend status**: fully built (`components/customer/ProductGrid.tsx`)
+— shows price only when present (never fabricated), disables the button
+and shows "Esgotado" only when `inStock === false` known; with neither
+field present (today), behaves exactly as before — no price shown, Add
+always enabled, relying on the Cart service's own stock check as the
+fallback. `PublicProduct.price`/`inStock` are optional so the type is
+correct either way.
+
+---
+
 ## What's not here
 
 Everything below is **out of scope for this service**, per its

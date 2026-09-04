@@ -32,6 +32,9 @@ export interface UserProfile {
   mustChangePassword: boolean;
   /** Profile photo URL — set via PATCH /api/v1/users/me. */
   photoUrl?: string | null;
+  /** Set via PATCH /api/v1/users/me/location — null until the user sets it. */
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: string;
 }
 

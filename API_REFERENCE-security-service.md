@@ -319,6 +319,42 @@ Updates the editable profile fields. Email, password, and role are *not* editabl
 
 ---
 
+### `PATCH /api/v1/users/me/location` — JWT, any authenticated role
+
+New 2026-09-04. Sets the caller's own GPS location — used for
+proximity-based sorting/search on the customer side, but not restricted
+to `ROLE_CUSTOMER`: a merchant or courier is also a person who might want
+their own location set, so this falls to the generic authenticated rule,
+nothing role-specific.
+
+**Request body** — both required together:
+
+```json
+{ "latitude": -25.9692, "longitude": 32.5732 }
+```
+
+**Response `200 OK`** — the updated `UserProfileResponse`, now including
+`latitude`/`longitude` (also present on plain `GET`, `null` until set —
+and on the admin user-detail and merchant-staff-detail responses too,
+since they all share this one DTO).
+
+**Errors**: `400 VALIDATION_ERROR` outside a generous Maputo-area
+bounding box (`lat -26.3..-25.7`, `lon 32.3..32.8` — same range as the
+Stores-and-Stock shop-location endpoint), with separate messages for
+`latitude` and `longitude` if both are out of range. `401` if
+unauthenticated.
+
+Currently **optional** — a user (customer or otherwise) can have no
+location set indefinitely. Flag: once checkout exists, delivery will
+need somewhere to route to — worth revisiting whether this should become
+required at that point, for customers at least.
+
+**Frontend**: new "Localização" section on `/profile`, reusing the exact
+same Leaflet + OpenStreetMap picker built for shop location — no new
+map/geocoding plumbing, just pointed at this endpoint instead.
+
+---
+
 ### Profile photo
 
 This service stores the photo URL only — it does **not** talk to S3.

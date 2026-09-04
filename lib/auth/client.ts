@@ -89,6 +89,10 @@ export function changePassword(currentPassword: string, newPassword: string) {
   return sendJson<UserProfile>("/api/auth/change-password", "POST", { currentPassword, newPassword });
 }
 
+export function setUserLocation(latitude: number, longitude: number) {
+  return sendJson<UserProfile>("/api/users/location", "PATCH", { latitude, longitude });
+}
+
 export async function presignUserPhoto(contentType: string): Promise<{ uploadUrl: string; key: string; expiresAt: string }> {
   const res = await fetch("/api/users/photo/presign", {
     method: "POST",

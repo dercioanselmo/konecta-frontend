@@ -22,6 +22,7 @@ import {
   ClientApiError,
 } from "@/lib/auth/client";
 import { uploadAndConfirm } from "@/lib/stores/upload";
+import { LocationSection } from "./LocationSection";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
 
 export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
@@ -222,6 +223,8 @@ export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
           Guardar alterações
         </Button>
       </form>
+
+      <LocationSection user={user} onSaved={setUser} />
 
       {/* Change password */}
       <form

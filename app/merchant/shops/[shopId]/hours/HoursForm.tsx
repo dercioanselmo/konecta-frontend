@@ -40,6 +40,7 @@ export function HoursForm({
 }: HoursFormProps) {
   const [shopName, setShopName] = useState("Loja");
   const [days, setDays] = useState<OpeningHoursDay[]>(defaultDays());
+  const [hasSavedHours, setHasSavedHours] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,7 +51,9 @@ export function HoursForm({
     try {
       const [shop, hours] = await Promise.all([getShop(shopId), getHours(shopId)]);
       setShopName(shop.name);
-      if (hours.days?.length === 7) setDays(normalizeDays(hours.days));
+      const savedAlready = hours.days?.length === 7;
+      setHasSavedHours(savedAlready);
+      if (savedAlready) setDays(normalizeDays(hours.days));
     } catch (err) {
       setLoadError(err instanceof ClientApiError ? err.message : "Não foi possível carregar o horário.");
     }
@@ -74,6 +77,7 @@ export function HoursForm({
     try {
       const result = await setHours(shopId, { days });
       setDays(normalizeDays(result.days));
+      setHasSavedHours(true);
       setSaved(true);
     } catch (err) {
       setSaveError(err instanceof ClientApiError ? err.details?.join(" ") ?? err.message : "Não foi possível guardar o horário.");
@@ -96,6 +100,12 @@ export function HoursForm({
       <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <form onSubmit={onSubmit} className="flex max-w-lg flex-col gap-3">
+        {!hasSavedHours ? (
+          <p className="rounded-xl bg-brand-orange/10 px-4 py-3 text-sm text-brand-orange">
+            Esta loja ainda não tem horário guardado — a loja aparece como fechada até guardar. Os
+            valores abaixo são apenas uma sugestão; reveja-os e clique em &quot;Guardar horário&quot;.
+          </p>
+        ) : null}
         {days.map((d, i) => (
           <div key={d.day} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3">
             <span className="w-32 text-sm font-medium text-foreground">{WEEKDAY_LABELS[d.day]}</span>

@@ -3,7 +3,7 @@ import { authApiFetch } from "@/lib/auth/authApi";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
 import type { AdminUser, PageResponse } from "@/lib/admin/types";
-import type { AdminShopSummary } from "@/lib/stores/types";
+import type { AdminShopSummary, Category } from "@/lib/stores/types";
 
 export default async function AdminDashboardPage() {
   const user = await getCurrentUser();
@@ -11,6 +11,7 @@ export default async function AdminDashboardPage() {
 
   let pendingCount: number | null = null;
   let shopCount: number | null = null;
+  let categoryCount: number | null = null;
   if (accessToken) {
     const headers = { Authorization: `Bearer ${accessToken}` };
     try {
@@ -30,6 +31,12 @@ export default async function AdminDashboardPage() {
       shopCount = shops.totalElements;
     } catch {
       shopCount = null;
+    }
+    try {
+      const categories = await storesApiFetch<Category[]>("/api/v1/admin/categories", { headers });
+      categoryCount = categories.length;
+    } catch {
+      categoryCount = null;
     }
   }
 
@@ -66,6 +73,21 @@ export default async function AdminDashboardPage() {
         {shopCount !== null ? (
           <span className="whitespace-nowrap rounded-full bg-brand-green/15 px-3 py-1 text-sm font-semibold text-brand-green">
             {shopCount} loja{shopCount === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </Link>
+
+      <Link
+        href="/admin/categories"
+        className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 transition-colors hover:bg-surface-hover"
+      >
+        <div>
+          <p className="text-base font-semibold text-foreground">Categorias</p>
+          <p className="text-sm text-muted">Gerir categorias, subcategorias e imagens.</p>
+        </div>
+        {categoryCount !== null ? (
+          <span className="whitespace-nowrap rounded-full bg-brand-purple/15 px-3 py-1 text-sm font-semibold text-brand-purple">
+            {categoryCount} categoria{categoryCount === 1 ? "" : "s"}
           </span>
         ) : null}
       </Link>

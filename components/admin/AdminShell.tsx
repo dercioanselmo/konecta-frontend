@@ -48,6 +48,12 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         >
           Lojas
         </Link>
+        <Link
+          href="/admin/categories"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
+        >
+          Categorias
+        </Link>
       </nav>
 
       <main className="flex-1 py-6">{children}</main>

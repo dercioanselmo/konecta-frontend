@@ -6,8 +6,10 @@ import type {
   AdminShopSummary,
   AdminShopsQuery,
   Category,
+  CreateCategoryPayload,
   CreateProductPayload,
   CreateShopPayload,
+  CreateSubcategoryPayload,
   DashboardSummary,
   OpeningHours,
   PageResponse,
@@ -20,8 +22,10 @@ import type {
   Shop,
   ShopSummary,
   Subcategory,
+  UpdateCategoryPayload,
   UpdateProductPayload,
   UpdateShopPayload,
+  UpdateSubcategoryPayload,
 } from "./types";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -198,8 +202,70 @@ export function listAllShops(query: AdminShopsQuery): Promise<PageResponse<Admin
   const params = new URLSearchParams();
   if (query.query) params.set("query", query.query);
   if (query.status) params.set("status", query.status);
+  if (query.categoryId) params.set("categoryId", query.categoryId);
   params.set("page", String(query.page ?? 0));
   params.set("size", String(query.size ?? 20));
   if (query.sort) params.set("sort", query.sort);
   return request(`/api/admin/shops?${params.toString()}`);
+}
+
+// Admin-only: category/subcategory taxonomy CRUD.
+export function listAdminCategories(): Promise<Category[]> {
+  return request("/api/admin/categories");
+}
+
+export function createCategory(payload: CreateCategoryPayload): Promise<Category> {
+  return request("/api/admin/categories", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getAdminCategory(categoryId: string): Promise<Category> {
+  return request(`/api/admin/categories/${categoryId}`);
+}
+
+export function updateCategory(categoryId: string, payload: UpdateCategoryPayload): Promise<Category> {
+  return request(`/api/admin/categories/${categoryId}`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export function deleteCategory(categoryId: string): Promise<void> {
+  return request(`/api/admin/categories/${categoryId}`, { method: "DELETE" });
+}
+
+export function presignCategoryImage(categoryId: string, contentType: string): Promise<PresignResponse> {
+  return request(`/api/admin/categories/${categoryId}/image/presign`, {
+    method: "POST",
+    body: JSON.stringify({ contentType }),
+  });
+}
+
+export function confirmCategoryImage(categoryId: string, key: string): Promise<Category> {
+  return request(`/api/admin/categories/${categoryId}/image`, {
+    method: "POST",
+    body: JSON.stringify({ key }),
+  });
+}
+
+export function listAdminSubcategories(categoryId: string): Promise<Subcategory[]> {
+  return request(`/api/admin/categories/${categoryId}/subcategories`);
+}
+
+export function createSubcategory(categoryId: string, payload: CreateSubcategoryPayload): Promise<Subcategory> {
+  return request(`/api/admin/categories/${categoryId}/subcategories`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateSubcategory(
+  categoryId: string,
+  subcategoryId: string,
+  payload: UpdateSubcategoryPayload,
+): Promise<Subcategory> {
+  return request(`/api/admin/categories/${categoryId}/subcategories/${subcategoryId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteSubcategory(categoryId: string, subcategoryId: string): Promise<void> {
+  return request(`/api/admin/categories/${categoryId}/subcategories/${subcategoryId}`, { method: "DELETE" });
 }

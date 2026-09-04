@@ -615,16 +615,49 @@ shop (or is browsing).
 
 **Errors**: `404 CATEGORY_NOT_FOUND` for an unknown `categoryId`.
 
-### Admin CRUD for categories/subcategories — different audience
+### Admin CRUD for categories/subcategories — now used by this frontend too
 
-Full create/edit/delete for both levels exists at
-`/api/v1/admin/categories` and
-`/api/v1/admin/categories/{categoryId}/subcategories`, but requires
-`ROLE_ADMIN` — this is **for the admin dashboard, not the merchant
-one**. Full contract in this service's `context.md` §2/§4. Not
-duplicated here since it's a different frontend's concern; flag if the
-merchant dashboard turns out to need any of it (e.g. a merchant
-requesting a new category) and it can be revisited.
+`ROLE_ADMIN` only. Originally deferred here as "a different frontend's
+concern" — it isn't anymore, the Admin panel's "Categorias" section
+(2026-09-04) is built against this, so documenting the actually-used
+subset. Full detail lives in this service's own `context.md` §2/§4;
+this is the frontend-relevant summary.
+
+**`/api/v1/admin/categories`**
+
+| Method | Notes |
+|---|---|
+| `GET` | All categories, active and inactive. |
+| `POST` | Body `{ code*, name*, sortOrder?, active? }`. `code` uppercased server-side. `409 CATEGORY_CODE_ALREADY_EXISTS` on duplicate. |
+| `GET /{categoryId}` | |
+| `PATCH /{categoryId}` | Body `{ name?, sortOrder?, active? }` — `code` immutable after creation. |
+| `DELETE /{categoryId}` | `204`. `409 CATEGORY_IN_USE` if it has subcategories or is assigned to any shop — deactivate (`active: false`) instead. |
+
+**`/api/v1/admin/categories/{categoryId}/subcategories`** — same shape
+one level down: `GET` (all under the category, `404 CATEGORY_NOT_FOUND`
+if the category doesn't exist), `POST` (`409 SUBCATEGORY_CODE_ALREADY_EXISTS`
+if the code is taken **within this category** — codes are per-category,
+not global), `GET/PATCH/DELETE /{subcategoryId}` (`code` immutable,
+`409 SUBCATEGORY_IN_USE` on delete if any product references it).
+
+**Category images** — same presigned two-step pattern as shop logos/product
+photos, new `2026-09-04`:
+
+- `POST /api/v1/admin/categories/{categoryId}/image/presign` — body
+  `{ contentType }`, response `{ uploadUrl, key, expiresAt }`.
+- `POST /api/v1/admin/categories/{categoryId}/image` — body `{ key }`,
+  confirms the upload and returns the updated `Category` with `imageUrl`
+  set (a presigned GET, same 1h TTL as everywhere else in this doc).
+- `imageUrl` (`string | null`) is on `Category` everywhere it appears,
+  including the **public** `GET /api/v1/meta/categories` — that's how the
+  customer home page's category tiles get their picture without needing
+  auth.
+
+**`categoryId` filter on `GET /api/v1/admin/shops`** — new `2026-09-04`,
+optional query param, filters to shops carrying that top-level category
+(via the `store_categories` join, so it's a real many-to-many match, not
+a name/substring heuristic). Live-verified against two different real
+categories returning correctly different shop sets.
 
 ---
 
@@ -754,7 +787,8 @@ guessed shapes for them.
 
 ### `Category`
 
-`{ id, code, name, sortOrder, active }`
+`{ id, code, name, sortOrder, active, imageUrl }` — `imageUrl` (string |
+null) new 2026-09-04, see [Admin CRUD for categories](#admin-crud-for-categoriessubcategories--now-used-by-this-frontend-too).
 
 ---
 

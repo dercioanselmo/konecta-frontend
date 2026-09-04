@@ -9,7 +9,30 @@ export interface Category {
   name: string;
   sortOrder: number;
   active: boolean;
+  imageUrl: string | null;
 }
+
+export interface CreateCategoryPayload {
+  code: string;
+  name: string;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export interface UpdateCategoryPayload {
+  name?: string;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export interface CreateSubcategoryPayload {
+  code: string;
+  name: string;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export type UpdateSubcategoryPayload = Omit<CreateSubcategoryPayload, "code">;
 
 export interface Subcategory {
   id: string;
@@ -191,6 +214,7 @@ export interface AdminShopSummary {
 export interface AdminShopsQuery {
   query?: string;
   status?: ShopStatus;
+  categoryId?: string;
   page?: number;
   size?: number;
   sort?: string;

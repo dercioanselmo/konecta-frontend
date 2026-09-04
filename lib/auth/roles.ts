@@ -14,12 +14,16 @@ export const ROLE_HOME: Record<Role, string> = {
   MERCHANT_STAFF: "/merchant",
 };
 
-/** Route prefixes that require a specific role, most specific first. */
+/**
+ * Route prefixes that require a specific role, most specific first.
+ * `/home` is deliberately absent — it's the public customer storefront,
+ * browsable without an account; a login/register CTA lives on the page
+ * itself for whoever wants to sign in.
+ */
 export const ROLE_PROTECTED_PREFIXES: { prefix: string; role: Role }[] = [
   { prefix: "/merchant", role: "MERCHANT" },
   { prefix: "/courier", role: "COURIER" },
   { prefix: "/admin", role: "ADMIN" },
-  { prefix: "/home", role: "CUSTOMER" },
 ];
 
 /** Paths that require authentication but no specific role (any logged-in user). */

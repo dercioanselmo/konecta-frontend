@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
+import { CartBadge } from "@/components/customer/CartBadge";
 import { getCurrentUser } from "@/lib/auth/session";
 import { roleHomePath } from "@/lib/auth/roles";
 import { storesApiFetch } from "@/lib/stores/storesApi";
@@ -31,7 +32,10 @@ export default async function CustomerHomePage() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           {user ? (
-            <UserMenu user={user} />
+            <>
+              <CartBadge />
+              <UserMenu user={user} />
+            </>
           ) : (
             <Link
               href="/login"

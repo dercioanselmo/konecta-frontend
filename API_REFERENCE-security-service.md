@@ -355,6 +355,54 @@ map/geocoding plumbing, just pointed at this endpoint instead.
 
 ---
 
+### Checkout preferences — `GET`/`PATCH /api/v1/users/me/preferences`
+
+New 2026-09-05, live-verified. Originally requested against
+Stores-and-Stock (see that service's own doc for the withdrawn proposal
+and why); built here instead, since Stores-and-Stock has no user-keyed
+data at all today and this is squarely profile data. **Any authenticated
+role**, same as location — matches the `PATCH .../location` precedent.
+
+Standalone `UserPreferencesResponse` — **not** merged into
+`UserProfileResponse`, so it doesn't show up on `GET /users/me` or
+anywhere else that DTO appears (admin user detail, merchant-staff
+detail).
+
+**`GET /api/v1/users/me/preferences`** — both fields `null` until set:
+
+```json
+{ "deliveryPreference": null, "paymentMethod": null }
+```
+
+**`PATCH /api/v1/users/me/preferences`** — genuine partial update
+(confirmed live: setting one field, then only the other, leaves the
+first untouched):
+
+```json
+{ "deliveryPreference": "PICKUP" }
+```
+
+**Response `200 OK`** (both endpoints) — the current preferences, same
+shape as `GET`:
+
+| Field | Type | Values |
+|---|---|---|
+| `deliveryPreference` | string \| null | `HOME_DELIVERY`, `PICKUP` |
+| `paymentMethod` | string \| null | `CARD`, `MPESA`, `EMOLA`, `CASH` |
+
+Migration `V7`, two nullable columns on `users`.
+
+**Frontend**: new "Preferências de compra" section on `/profile`
+(`app/profile/PreferencesSection.tsx`), pill-toggle UI, saves
+immediately on selection. `lib/auth/types.ts`
+(`UserPreferences`/`DeliveryPreference`/`PaymentMethod`),
+`lib/auth/client.ts` (`getUserPreferences`/`setUserPreferences`), BFF
+route `app/api/users/preferences/route.ts`. Not yet consumed anywhere
+else — these are stored now so checkout can default to them once it's
+built.
+
+---
+
 ### Profile photo
 
 This service stores the photo URL only — it does **not** talk to S3.

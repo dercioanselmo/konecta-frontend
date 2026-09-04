@@ -2,11 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { storesApiFetch } from "@/lib/stores/storesApi";
+import { getCurrentUser } from "@/lib/auth/session";
 import { ApiError } from "@/lib/auth/types";
 import type { PublicShop, Subcategory } from "@/lib/stores/types";
 
 export default async function StorePage({ params }: PageProps<"/stores/[storeId]">) {
   const { storeId } = await params;
+  const user = await getCurrentUser();
 
   let shop: PublicShop | null = null;
   let subcategories: Subcategory[] = [];
@@ -25,7 +27,7 @@ export default async function StorePage({ params }: PageProps<"/stores/[storeId]
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref="/home" backLabel="← Categorias" />
+      <CustomerHeader backHref="/home" backLabel="← Categorias" showCart={!!user} />
 
       {loadError || !shop ? (
         <p className="mt-6 text-sm text-red-500">{loadError ?? "Loja não encontrada."}</p>

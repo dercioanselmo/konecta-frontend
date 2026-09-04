@@ -38,6 +38,21 @@ export interface UserProfile {
   createdAt: string;
 }
 
+/**
+ * Checkout defaults, standalone from UserProfile (matches the backend's
+ * own UserPreferencesResponse — not bolted onto /users/me). Set via
+ * PATCH /api/v1/users/me/preferences; both null until set.
+ */
+export type DeliveryPreference = "HOME_DELIVERY" | "PICKUP";
+export type PaymentMethod = "CARD" | "MPESA" | "EMOLA" | "CASH";
+
+export interface UserPreferences {
+  deliveryPreference: DeliveryPreference | null;
+  paymentMethod: PaymentMethod | null;
+}
+
+export type UpdateUserPreferencesPayload = Partial<UserPreferences>;
+
 export interface TokenResponse {
   accessToken: string;
   refreshToken: string;

@@ -1,6 +1,7 @@
-import Image from "next/image";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import { ProductGrid } from "@/components/customer/ProductGrid";
 import { storesApiFetch } from "@/lib/stores/storesApi";
+import { getCurrentUser } from "@/lib/auth/session";
 import { ApiError } from "@/lib/auth/types";
 import type { PageResponse, PublicProduct, PublicShop, Subcategory } from "@/lib/stores/types";
 
@@ -8,6 +9,7 @@ export default async function StoreSubcategoryProductsPage({
   params,
 }: PageProps<"/stores/[storeId]/subcategories/[subcategoryId]">) {
   const { storeId, subcategoryId } = await params;
+  const user = await getCurrentUser();
 
   let shop: PublicShop | null = null;
   let subcategory: Subcategory | undefined;
@@ -30,7 +32,7 @@ export default async function StoreSubcategoryProductsPage({
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref={`/stores/${storeId}`} backLabel="← Categorias" />
+      <CustomerHeader backHref={`/stores/${storeId}`} backLabel="← Categorias" showCart={!!user} />
 
       <h1 className="mt-4 text-2xl font-bold text-foreground">{subcategory?.name ?? "Produtos"}</h1>
       {shop ? <p className="text-sm text-muted">{shop.name}</p> : null}
@@ -38,28 +40,13 @@ export default async function StoreSubcategoryProductsPage({
       <main className="mt-6 flex-1">
         {loadError ? (
           <p className="text-sm text-red-500">{loadError}</p>
-        ) : products.length === 0 ? (
-          <p className="text-sm text-muted">Ainda não há produtos nesta categoria.</p>
         ) : (
-          <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5 md:grid-cols-6">
-            {products.map((p) => (
-              <div
-                key={p.id}
-                className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface"
-              >
-                <div className="relative aspect-square w-full bg-background">
-                  {p.photoUrl ? (
-                    <Image src={p.photoUrl} alt={p.name} fill sizes="120px" className="object-cover" unoptimized />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[10px] text-muted">
-                      Sem foto
-                    </div>
-                  )}
-                </div>
-                <p className="truncate p-1.5 text-[11px] font-medium text-foreground">{p.name}</p>
-              </div>
-            ))}
-          </div>
+          <ProductGrid
+            products={products}
+            shopId={storeId}
+            isLoggedIn={!!user}
+            loginNext={`/stores/${storeId}/subcategories/${subcategoryId}`}
+          />
         )}
       </main>
     </div>

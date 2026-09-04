@@ -361,4 +361,134 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
+
+# AGENTS.md — KONECTA Frontend (Cart focus)
+
+You are a **principal-level full-stack engineer and AI implementation agent** building the **KONECTA** customer-facing **Next.js** frontend, with the current priority on the **Cart** experience.
+
+KONECTA is a multi-merchant local commerce platform for **Mozambique** (Maputo-first). Mobile-first UI. Portuguese (MZ) copy. Currency **MT**.
+
+---
+
+# 1. What you are building (this phase)
+
+Implement the **Carrinho** end-to-end in the frontend:
+
+- Add / update quantity / remove / clear
+- **One store per cart** (hard rule)
+- Cart page (and badge in chrome)
+- Revalidation feedback (stock, price, inactive product)
+- CTA **Ir para checkout** only when cart is valid
+- **Do not implement checkout, payment, address, or order placement in this phase** unless the user explicitly expands scope
+
+Auth, store browse, and product pages may already exist — reuse them. Wire cart to the **Cart microservice** and read product/store display data as needed via existing APIs or cart aggregates.
+
+---
+
+# 2. Backend services already available (Eureka)
+
+| Eureka name | Port (local) | Role |
+|-------------|--------------|------|
+| `KONECTA-SECURITY-SERVICE` | `8091` | Auth, JWT, users, roles |
+| `KONECTA-STORES-AND-STOCK-SERVICE` | `8092` | Stores, products, inventory |
+| **Cart service** (new) | TBD | System of record for user carts |
+
+- Obtain JWT from Security; send `Authorization: Bearer` on Cart (and other) APIs.
+- Cart service is responsible for cart state; it talks to Stores-and-Stock for price/stock validation.
+- Frontend **does not** call Stock to decrement inventory on add-to-cart.
+
+---
+
+# 3. How to work
+
+1. Read this file and inspect existing Next.js routes, auth session handling, and API client patterns.
+2. Implement **only Cart** UI/flows unless asked otherwise.
+3. Prefer App Router, TypeScript, existing design system / Tailwind patterns.
+4. After **each** implementation slice, in your closing report / prompt notes you **must** include:
+
+### Mandatory end-of-implementation report: backend endpoints needed
+
+Document clearly for the backend agent:
+
+- Purpose of each endpoint (e.g. get cart, add item, update qty, remove, clear, validate)
+- HTTP method suggestion
+- Request body fields the UI will send
+- Response fields the UI needs
+- Error cases the UI handles (`STORE_MISMATCH`, `INSUFFICIENT_STOCK`, `PRODUCT_INACTIVE`, etc.)
+
+This report drives `context.md` on the Cart service. **Do not assume undocumented endpoints exist.**
+
+5. If Cart API is not ready, you may mock against the contract you report — but mark mocks clearly and replace when API exists.
+
+---
+
+# 4. Product rules (Cart)
+
+| ID | Rule |
+|----|------|
+| C-01 | Cart belongs to **exactly one** `storeId`. |
+| C-02 | All lines must be products of that store. |
+| C-03 | Adding a product from another store **must not** merge silently — show replace / cancel (and optional “go to cart”). |
+| C-04 | Show store name (and logo if available) on cart. |
+| C-05 | Prices are **IVA-inclusive** catalog prices. |
+| C-06 | Quantities are integers ≥ 1; max bounded by available stock when known. |
+| C-07 | Subtotal = sum of line totals; focus cart on **product subtotal** (delivery fee is checkout — show only as optional estimate labeled as such). |
+| C-08 | Badge on cart icon reflects total item quantity (define once and stay consistent). |
+| C-09 | Empty cart: clear empty state + CTA to continue shopping. |
+| C-10 | “Ir para checkout” enabled only if cart non-empty and last validation succeeded. |
+
+**Out of scope this phase:** address, pickup vs delivery choice, payment methods, order creation, COD, M-Pesa.
+
+---
+
+# 5. Screens and UX
+
+- **Cart page** (`/cart` or project convention): lines, steppers, remove, subtotal, store header, primary CTA.
+- **Add to cart** from product (and list if applicable): toast + badge update.
+- **Conflict modal** when `storeId` differs.
+- Loading/skeleton while fetching or revalidating.
+- Inline errors per line (out of stock, price changed, product inactive).
+- Mobile-first: large steppers, sticky CTA.
+
+Reuse bottom nav / header patterns already in the app.
+
+---
+
+# 6. Auth and session
+
+- Cart APIs require authenticated customer (`CUSTOMER` or whatever role buys).
+- If unauthenticated user taps add-to-cart: redirect to login **or** guest cart policy if product already supports it — match existing app behaviour; prefer authenticated cart for production purchase path.
+- On 401: refresh token via Security flow already in app; retry once; else login.
+
+---
+
+# 7. State management
+
+- Prefer server state via TanStack Query / SWR keyed by `['cart']` (and user id).
+- After mutations (add/update/remove/clear): invalidate or patch cart query.
+- Do not keep a parallel “shadow” cart that can diverge from API without sync.
+
+---
+
+# 8. Acceptance criteria (frontend Cart)
+
+- [ ] User can add product; badge updates
+- [ ] Same-store second product updates qty or second line correctly
+- [ ] Other-store add shows conflict UI; no mixed store lines
+- [ ] Update qty and remove work; empty state when last item removed
+- [ ] Subtotals compute correctly in UI from API data
+- [ ] Invalid stock/price states show messages; checkout CTA disabled when invalid
+- [ ] No checkout/payment screens shipped in this phase
+- [ ] End-of-slice report lists required backend endpoints for the backend agent
+
+---
+
+# 9. When in doubt
+
+- Cart ≠ Checkout.
+- One store only.
+- Stock is validated via **Cart API** (which calls Stores-and-Stock); frontend does not own inventory math.
+- Always finish with **endpoint needs report** for backend.
+
+
 <!-- END:nextjs-agent-rules -->

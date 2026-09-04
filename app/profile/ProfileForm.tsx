@@ -23,6 +23,7 @@ import {
 } from "@/lib/auth/client";
 import { uploadAndConfirm } from "@/lib/stores/upload";
 import { LocationSection } from "./LocationSection";
+import { PreferencesSection } from "./PreferencesSection";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
 
 export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
@@ -225,6 +226,8 @@ export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
       </form>
 
       <LocationSection user={user} onSaved={setUser} />
+
+      <PreferencesSection />
 
       {/* Change password */}
       <form

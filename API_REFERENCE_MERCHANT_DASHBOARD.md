@@ -809,6 +809,42 @@ used across every customer page now, including the two new ones.
 
 ---
 
+## WITHDRAWN — `price` on the public shop-products list (2026-09-04, withdrawn 2026-09-05)
+
+No longer needed. This was proposed so the Cart mock could compute a
+subtotal — but the **real** Cart microservice shipped instead
+(`API_REFERENCE-cart-service-response-frontend.md`) and resolves price
+server-to-server directly against this service, not through the public
+browsing endpoint at all. Live-verified: cart line `unitPrice`/`lineTotal`
+are real numbers, no dependency on this endpoint changing. Leaving the
+original ask below only in case a public product price ever becomes
+independently useful for the browsing grid itself (e.g. showing price
+before adding to cart) — not blocking anything today.
+
+<details>
+<summary>Original text</summary>
+
+`GET /api/v1/shops/{shopId}/products` currently returns only
+`{ id, name, photoUrl }` (deliberately minimal per the original
+browsing-grid ask). Proposed addition: `price` (decimal, IVA-inclusive,
+matching `Product.price` from the merchant-side model) on this same
+public row.
+
+</details>
+
+---
+
+## MOVED — Customer checkout preferences
+
+Built on **KONECTA-SECURITY-SERVICE**, not this service — see
+`API_REFERENCE-security-service.md`'s "Checkout preferences" section for
+the live contract. (Originally proposed here 2026-09-05; the
+architectural note about this service having no user-keyed data still
+stands as the reason it landed on Security instead — kept there as
+context, not repeated in two places.)
+
+---
+
 ## What's not here
 
 Everything below is **out of scope for this service**, per its

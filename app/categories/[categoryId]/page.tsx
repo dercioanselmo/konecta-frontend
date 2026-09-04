@@ -35,7 +35,7 @@ export default async function CategoryShopsPage({ params }: PageProps<"/categori
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader backHref="/home" backLabel="← Categorias" />
+      <CustomerHeader backHref="/home" backLabel="← Categorias" showCart />
       <h1 className="mt-4 text-2xl font-bold text-foreground">{category?.name ?? "Lojas"}</h1>
       <p className="text-sm text-muted">Ordenadas pelas mais próximas de si.</p>
 

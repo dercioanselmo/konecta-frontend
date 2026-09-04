@@ -1,6 +1,14 @@
 "use client";
 
-import type { ApiErrorBody, Neighborhood, RequestableRole, Role, UserProfile } from "./types";
+import type {
+  ApiErrorBody,
+  Neighborhood,
+  RequestableRole,
+  Role,
+  UpdateUserPreferencesPayload,
+  UserPreferences,
+  UserProfile,
+} from "./types";
 
 export class ClientApiError extends Error {
   code: string;
@@ -91,6 +99,22 @@ export function changePassword(currentPassword: string, newPassword: string) {
 
 export function setUserLocation(latitude: number, longitude: number) {
   return sendJson<UserProfile>("/api/users/location", "PATCH", { latitude, longitude });
+}
+
+export async function getUserPreferences(): Promise<UserPreferences> {
+  const res = await fetch("/api/users/preferences");
+  if (!res.ok) {
+    const body: ApiErrorBody = await res.json().catch(() => ({
+      code: "UNKNOWN_ERROR",
+      message: "Não foi possível carregar as preferências.",
+    }));
+    throw new ClientApiError(res.status, body);
+  }
+  return res.json();
+}
+
+export function setUserPreferences(payload: UpdateUserPreferencesPayload) {
+  return sendJson<UserPreferences>("/api/users/preferences", "PATCH", payload);
 }
 
 export async function presignUserPhoto(contentType: string): Promise<{ uploadUrl: string; key: string; expiresAt: string }> {

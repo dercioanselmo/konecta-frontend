@@ -233,6 +233,14 @@ underlying service methods already support it).
 > [What's not here](#whats-not-here)). Don't fake them client-side;
 > just don't render those two fields yet.
 
+**PROPOSED small addition (2026-09-04)**: add `categories: Category[]`
+to this list response too — it's already on the single-shop `GET`, just
+missing here. Ask: the merchant's `/merchant` shop-picker dashboard wants
+to show each shop's category as a small badge without an extra request
+per shop. Frontend (`ShopSummary.categories?`) already treats it as
+optional and simply won't render a badge until this ships — no urgency,
+whenever convenient.
+
 ### `POST /api/v1/merchant/shops` — create a shop
 
 **Request body** — unchanged from the original spec:

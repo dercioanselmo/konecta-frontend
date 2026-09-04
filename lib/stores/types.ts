@@ -66,6 +66,12 @@ export interface ShopSummary {
   logoUrl: string | null;
   isOpen: boolean;
   lowStockCount: number;
+  /**
+   * PROPOSED — not yet returned by GET /merchant/shops (only the
+   * single-shop GET has it today). Optional so this type stays correct
+   * either way; the UI just won't show a category badge until it ships.
+   */
+  categories?: Category[];
 }
 
 export interface Shop {

@@ -43,7 +43,7 @@ export default async function CategoryAccessPage({ params }: PageProps<"/categor
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-center gap-2">
           <h1 className="text-xl font-bold text-foreground">
             Veja as lojas de {category?.name ?? "esta categoria"} mais perto de si
           </h1>

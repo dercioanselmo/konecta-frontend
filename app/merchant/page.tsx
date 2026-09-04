@@ -73,6 +73,18 @@ export default async function MerchantShopsPage() {
               />
             </div>
             <p className="text-sm text-muted">{shop.isOpen ? "Aberta agora" : "Fechada agora"}</p>
+            {shop.categories && shop.categories.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {shop.categories.map((c) => (
+                  <span
+                    key={c.id}
+                    className="rounded-full border border-border bg-background px-2.5 py-0.5 text-xs text-muted"
+                  >
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {shop.lowStockCount > 0 ? (
               <span className="w-fit rounded-full bg-brand-orange/15 px-3 py-1 text-xs font-semibold text-brand-orange">
                 {shop.lowStockCount} produto{shop.lowStockCount === 1 ? "" : "s"} com stock baixo

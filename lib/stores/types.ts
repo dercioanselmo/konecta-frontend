@@ -48,6 +48,30 @@ export interface NearbyShop {
   distanceKm: number;
 }
 
+/**
+ * Public single-shop detail — enough to render the shop's own page and
+ * know which categories/subcategories it carries. PROPOSED — no public
+ * single-shop endpoint exists yet, see API_REFERENCE_MERCHANT_DASHBOARD.md.
+ */
+export interface PublicShop {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  coverUrl: string | null;
+  isOpen: boolean;
+  categories: Category[];
+}
+
+/**
+ * Row on the customer-facing "products in this shop/subcategory" grid.
+ * PROPOSED — no public shop-products endpoint exists yet.
+ */
+export interface PublicProduct {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+
 export interface Subcategory {
   id: string;
   categoryId: string;
@@ -57,6 +81,12 @@ export interface Subcategory {
   name: string;
   sortOrder: number;
   active: boolean;
+  /**
+   * PROPOSED — not yet returned by the backend. See
+   * API_REFERENCE_MERCHANT_DASHBOARD.md's "Store → subcategory → product
+   * browsing" section. Optional so this type stays correct either way.
+   */
+  imageUrl?: string | null;
 }
 
 /** Lightweight card shown on the shop picker — GET /merchant/shops. */

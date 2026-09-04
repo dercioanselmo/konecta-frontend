@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { getCurrentUser } from "@/lib/auth/session";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import type { Category } from "@/lib/stores/types";
@@ -32,9 +33,7 @@ export default async function CategoryAccessPage({ params }: PageProps<"/categor
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <Link href="/home" className="text-sm text-muted hover:underline">
-        ← Voltar
-      </Link>
+      <CustomerHeader />
 
       <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         {category?.imageUrl ? (

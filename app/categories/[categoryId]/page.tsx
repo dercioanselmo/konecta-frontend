@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { getCurrentUser } from "@/lib/auth/session";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import { ApiError } from "@/lib/auth/types";
@@ -34,10 +35,8 @@ export default async function CategoryShopsPage({ params }: PageProps<"/categori
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <Link href="/home" className="text-sm text-muted hover:underline">
-        ← Categorias
-      </Link>
-      <h1 className="mt-1 text-2xl font-bold text-foreground">{category?.name ?? "Lojas"}</h1>
+      <CustomerHeader backHref="/home" backLabel="← Categorias" />
+      <h1 className="mt-4 text-2xl font-bold text-foreground">{category?.name ?? "Lojas"}</h1>
       <p className="text-sm text-muted">Ordenadas pelas mais próximas de si.</p>
 
       <main className="mt-6 flex-1">

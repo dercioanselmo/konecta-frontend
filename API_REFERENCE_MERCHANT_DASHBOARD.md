@@ -739,6 +739,76 @@ untouched).
 
 ---
 
+## RESOLVED — Store → subcategory → product browsing
+
+**Done, live-verified 2026-09-04** — all three pieces implemented exactly
+as proposed. `GET /shops/{shopId}` returns real shop + categories,
+`404`s correctly for both an unknown id and a non-`ACTIVE` shop. Public
+subcategories now carry `imageUrl`; full presign → real `PUT` to S3 →
+confirm round-trip succeeded on a real subcategory. `GET
+/shops/{shopId}/products` returns the minimal `{id, name, photoUrl}`
+row, correctly scoped by `subcategoryId` (10 of 50 products when
+filtered). Also re-verified through the **actual running frontend
+app**: `/stores/{id}` renders the real shop header and subcategory grid
+(including the just-uploaded image), and
+`/stores/{id}/subcategories/{id}` renders the real product grid — no
+more fallback error state. Leaving the original proposal below for
+reference.
+
+## Store → subcategory → product browsing
+
+**Ask** (2026-09-04): next step after the shop grid — select a shop →
+see its subcategories as photo boxes → select a subcategory → see its
+products as photo boxes (photo + name only, no price/stock yet — that
+comes with the actual order flow, deliberately not built yet). Three
+gaps, all public/unauthenticated (matches the rest of the customer
+browsing surface):
+
+**1. `GET /api/v1/shops/{shopId}` — public single-shop detail.** Doesn't
+exist today — `GET /api/v1/shops` (the category-proximity list) has no
+by-id counterpart, and the only single-shop `GET` is the `MERCHANT`/`ADMIN`-
+authenticated one under `/merchant/shops/{shopId}`. Needed shape:
+
+```json
+{
+  "id": "uuid", "name": "string",
+  "logoUrl": "string | null", "coverUrl": "string | null",
+  "isOpen": true,
+  "categories": [{ "id": "...", "code": "...", "name": "...", "sortOrder": 1, "active": true, "imageUrl": "..." }]
+}
+```
+
+`categories` is what lets the frontend know which subcategories to show
+next (reusing the existing public `GET /meta/categories/{categoryId}/subcategories`
+for each of the shop's categories — no new endpoint needed for that part).
+
+**2. Subcategory images.** Same gap `imageUrl` filled for `Category` in
+Round 10 — `Subcategory` has no image field at all today. Same
+presigned two-step pattern: `POST /api/v1/admin/categories/{categoryId}/subcategories/{subcategoryId}/image/presign`
+→ confirm, `ROLE_ADMIN` only (matches category images), `imageUrl`
+added to the `Subcategory` model everywhere it appears, including the
+public subcategories-by-category endpoint.
+
+**3. `GET /api/v1/shops/{shopId}/products` — public products-in-a-shop
+list.** Doesn't exist — the only products list today is the
+`MERCHANT`/`ADMIN`-authenticated `.../merchant/shops/{shopId}/products`.
+Needed: public, only `active=true` products, optional `subcategoryId`
+filter, paginated. Row shape — deliberately minimal, matching the ask:
+
+```json
+{ "id": "uuid", "name": "string", "photoUrl": "string | null" }
+```
+(`photoUrl` = the product's primary photo, same as `Product.photos[isPrimary]` today.)
+
+**Frontend status**: fully built and live-verified end-to-end
+(`app/stores/[storeId]/page.tsx` — shop header + subcategory grid;
+`app/stores/[storeId]/subcategories/[subcategoryId]/page.tsx` — product
+grid). New shared `components/customer/CustomerHeader.tsx` (logo →
+`/home` from anywhere in the customer-facing app, per explicit request)
+used across every customer page now, including the two new ones.
+
+---
+
 ## What's not here
 
 Everything below is **out of scope for this service**, per its

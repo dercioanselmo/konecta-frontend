@@ -38,6 +38,25 @@ Build UI and BFF-style Next.js routes only as needed to talk to backend services
 Do not design a new visual brand from scratch if the project already has tokens/components. Reuse existing UI primitives. Mobile-first: every customer and courier screen must work on small viewports first.
 
 ---
+# test users:
+## Admin:
+username: dercio.anselmo@yahoo.com
+password: EmitaSpencer13
+
+## Store admin or MERCHANT
+username: dercio.anselmo@zohomail.com
+password: EmitaSpencer13
+
+## MERCHANT_STAFF ou Funcionario
+username: dercio.miguel@zohomail.com
+password: Emit@Spencer13
+
+## Customer
+username: dercio.miguel@gmail.com
+password: EmitaSpencer13
+
+
+---
 
 # 3. Tech stack (frontend)
 

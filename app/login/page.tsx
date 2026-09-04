@@ -9,8 +9,9 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { loginSchema, type LoginFormValues } from "@/lib/auth/validation";
-import { login, ClientApiError, ROLE_HOME_CLIENT, isGmailAddress } from "@/lib/auth/client";
+import { login, setUserPreferences, ClientApiError, ROLE_HOME_CLIENT, isGmailAddress } from "@/lib/auth/client";
 import { isProfileComplete } from "@/lib/auth/profile";
+import type { DeliveryPreference, PaymentMethod } from "@/lib/auth/types";
 
 function LoginForm() {
   const router = useRouter();
@@ -18,6 +19,8 @@ function LoginForm() {
   const justVerified = searchParams.get("verified") === "1";
   const oauthFailed = searchParams.get("error") === "google_oauth_failed";
   const nextPath = searchParams.get("next");
+  const deliveryPreference = searchParams.get("deliveryPreference") as DeliveryPreference | null;
+  const paymentMethod = searchParams.get("paymentMethod") as PaymentMethod | null;
   const [formError, setFormError] = useState<string | null>(null);
   const [redirectingToGoogle, setRedirectingToGoogle] = useState(false);
 
@@ -34,6 +37,15 @@ function LoginForm() {
     setFormError(null);
     try {
       const user = await login(values.email, values.password);
+      // Carried from register → OTP verify (no authenticated session existed
+      // there yet to save these directly) — applied now, right after the
+      // very first successful login.
+      if (deliveryPreference || paymentMethod) {
+        await setUserPreferences({
+          ...(deliveryPreference ? { deliveryPreference } : {}),
+          ...(paymentMethod ? { paymentMethod } : {}),
+        }).catch(() => {});
+      }
       if (!isProfileComplete(user)) {
         router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");
         return;

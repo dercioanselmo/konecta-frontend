@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { LocationPicker, MAPUTO_DEFAULT } from "@/components/customer/LocationPicker";
 import {
   editProfileSchema,
   changePasswordSchema,
@@ -16,19 +17,32 @@ import {
 import {
   updateProfile,
   changePassword,
+  setUserLocation,
+  setUserPreferences,
   presignUserPhoto,
   confirmUserPhoto,
   fetchNeighborhoods,
   ClientApiError,
 } from "@/lib/auth/client";
 import { uploadAndConfirm } from "@/lib/stores/upload";
-import { LocationSection } from "./LocationSection";
 import { PreferencesSection } from "./PreferencesSection";
-import type { Neighborhood, UserProfile } from "@/lib/auth/types";
+import type { Neighborhood, UserPreferences, UserProfile } from "@/lib/auth/types";
 
-export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
+export function ProfileForm({
+  user: initialUser,
+  preferences: initialPreferences,
+}: {
+  user: UserProfile;
+  preferences: UserPreferences;
+}) {
   const [user, setUser] = useState(initialUser);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [position, setPosition] = useState<[number, number]>(
+    initialUser.latitude != null && initialUser.longitude != null
+      ? [initialUser.latitude, initialUser.longitude]
+      : MAPUTO_DEFAULT,
+  );
+  const [preferences, setPreferences] = useState<UserPreferences>(initialPreferences);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -57,37 +71,49 @@ export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
     fetchNeighborhoods("Maputo").then(setNeighborhoods);
   }, []);
 
-  const onProfileSubmit = useCallback(async (values: EditProfileFormValues) => {
-    setProfileError(null);
-    setProfileSuccess(false);
-    try {
-      const updated = await updateProfile(values);
-      setUser(updated);
-      setProfileSuccess(true);
-    } catch (error) {
-      setProfileError(
-        error instanceof ClientApiError
-          ? (error.details?.join(" ") ?? error.message)
-          : "Não foi possível guardar as alterações.",
-      );
-    }
-  }, []);
+  const onProfileSubmit = useCallback(
+    async (values: EditProfileFormValues) => {
+      setProfileError(null);
+      setProfileSuccess(false);
+      try {
+        const [latitude, longitude] = position;
+        const [updatedUser, , updatedPreferences] = await Promise.all([
+          updateProfile(values),
+          setUserLocation(latitude, longitude),
+          setUserPreferences(preferences),
+        ]);
+        setUser(updatedUser);
+        setPreferences(updatedPreferences);
+        setProfileSuccess(true);
+      } catch (error) {
+        setProfileError(
+          error instanceof ClientApiError
+            ? (error.details?.join(" ") ?? error.message)
+            : "Não foi possível guardar as alterações.",
+        );
+      }
+    },
+    [position, preferences],
+  );
 
-  const onPasswordSubmit = useCallback(async (values: ChangePasswordFormValues) => {
-    setPasswordError(null);
-    setPasswordSuccess(false);
-    try {
-      await changePassword(values.currentPassword, values.newPassword);
-      passwordForm.reset();
-      setPasswordSuccess(true);
-    } catch (error) {
-      setPasswordError(
-        error instanceof ClientApiError
-          ? (error.details?.join(" ") ?? error.message)
-          : "Não foi possível alterar a palavra-passe.",
-      );
-    }
-  }, [passwordForm]);
+  const onPasswordSubmit = useCallback(
+    async (values: ChangePasswordFormValues) => {
+      setPasswordError(null);
+      setPasswordSuccess(false);
+      try {
+        await changePassword(values.currentPassword, values.newPassword);
+        passwordForm.reset();
+        setPasswordSuccess(true);
+      } catch (error) {
+        setPasswordError(
+          error instanceof ClientApiError
+            ? (error.details?.join(" ") ?? error.message)
+            : "Não foi possível alterar a palavra-passe.",
+        );
+      }
+    },
+    [passwordForm],
+  );
 
   const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,77 +189,75 @@ export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
         </div>
       </div>
 
-      {/* Profile details */}
-      <form
-        onSubmit={profileForm.handleSubmit(onProfileSubmit)}
-        className="flex max-w-lg flex-col gap-4"
-      >
-        <h2 className="text-lg font-semibold text-foreground">Dados pessoais</h2>
-        <div className="grid grid-cols-2 gap-3">
+      {/* Everything below saves together on one submit */}
+      <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="flex max-w-lg flex-col gap-8">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-foreground">Dados pessoais</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Primeiro nome"
+              autoComplete="given-name"
+              error={profileForm.formState.errors.firstName?.message}
+              {...profileForm.register("firstName")}
+            />
+            <Input
+              label="Último nome"
+              autoComplete="family-name"
+              error={profileForm.formState.errors.lastName?.message}
+              {...profileForm.register("lastName")}
+            />
+          </div>
           <Input
-            label="Primeiro nome"
-            autoComplete="given-name"
-            error={profileForm.formState.errors.firstName?.message}
-            {...profileForm.register("firstName")}
+            label="Telefone"
+            type="tel"
+            autoComplete="tel"
+            error={profileForm.formState.errors.phone?.message}
+            {...profileForm.register("phone")}
           />
           <Input
-            label="Último nome"
-            autoComplete="family-name"
-            error={profileForm.formState.errors.lastName?.message}
-            {...profileForm.register("lastName")}
+            label="Endereço"
+            error={profileForm.formState.errors.address?.message}
+            {...profileForm.register("address")}
           />
-        </div>
-        <Input
-          label="Telefone"
-          type="tel"
-          autoComplete="tel"
-          error={profileForm.formState.errors.phone?.message}
-          {...profileForm.register("phone")}
-        />
-        <Input
-          label="Endereço"
-          error={profileForm.formState.errors.address?.message}
-          {...profileForm.register("address")}
-        />
-        <Input label="Cidade" value="Maputo" disabled {...profileForm.register("city")} />
-        <Select
-          label="Bairro"
-          error={profileForm.formState.errors.neighborhood?.message}
-          {...profileForm.register("neighborhood")}
-        >
-          <option value="" disabled>
-            Selecione o bairro
-          </option>
-          {neighborhoods.map((n) => (
-            <option key={n.name} value={n.name}>
-              {n.name}
+          <Input label="Cidade" value="Maputo" disabled {...profileForm.register("city")} />
+          <Select
+            label="Bairro"
+            error={profileForm.formState.errors.neighborhood?.message}
+            {...profileForm.register("neighborhood")}
+          >
+            <option value="" disabled>
+              Selecione o bairro
             </option>
-          ))}
-        </Select>
+            {neighborhoods.map((n) => (
+              <option key={n.name} value={n.name}>
+                {n.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Localização</h2>
+            <p className="text-sm text-muted">Usada para mostrar lojas e produtos mais próximos de si.</p>
+          </div>
+          <LocationPicker latitude={position[0]} longitude={position[1]} onChange={(lat, lng) => setPosition([lat, lng])} />
+        </div>
+
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <PreferencesSection value={preferences} onChange={setPreferences} />
+        </div>
 
         {profileError ? <p className="text-sm text-red-500">{profileError}</p> : null}
-        {profileSuccess ? (
-          <p className="text-sm text-brand-green">Dados guardados com sucesso.</p>
-        ) : null}
+        {profileSuccess ? <p className="text-sm text-brand-green">Dados guardados com sucesso.</p> : null}
 
-        <Button
-          type="submit"
-          loading={profileForm.formState.isSubmitting}
-          className="mt-2 w-auto px-6"
-        >
+        <Button type="submit" loading={profileForm.formState.isSubmitting} className="w-auto px-6">
           Guardar alterações
         </Button>
       </form>
 
-      <LocationSection user={user} onSaved={setUser} />
-
-      <PreferencesSection />
-
       {/* Change password */}
-      <form
-        onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
-        className="flex max-w-lg flex-col gap-4"
-      >
+      <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex max-w-lg flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">Alterar palavra-passe</h2>
         <Input
           label="Palavra-passe atual"
@@ -258,15 +282,9 @@ export function ProfileForm({ user: initialUser }: { user: UserProfile }) {
         />
 
         {passwordError ? <p className="text-sm text-red-500">{passwordError}</p> : null}
-        {passwordSuccess ? (
-          <p className="text-sm text-brand-green">Palavra-passe alterada com sucesso.</p>
-        ) : null}
+        {passwordSuccess ? <p className="text-sm text-brand-green">Palavra-passe alterada com sucesso.</p> : null}
 
-        <Button
-          type="submit"
-          loading={passwordForm.formState.isSubmitting}
-          className="mt-2 w-auto px-6"
-        >
+        <Button type="submit" loading={passwordForm.formState.isSubmitting} className="mt-2 w-auto px-6">
           Alterar palavra-passe
         </Button>
       </form>

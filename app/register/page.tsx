@@ -12,13 +12,18 @@ import { Select } from "@/components/ui/Select";
 import { registerSchema, type RegisterFormValues } from "@/lib/auth/validation";
 import { registerCustomer, fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
 import { ROLE_LABELS, REQUESTABLE_ROLES } from "@/lib/auth/roleLabels";
-import type { Neighborhood, RequestableRole } from "@/lib/auth/types";
+import { PreferencesSection } from "@/app/profile/PreferencesSection";
+import type { Neighborhood, RequestableRole, UserPreferences } from "@/lib/auth/types";
 
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    deliveryPreference: null,
+    paymentMethod: null,
+  });
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -45,6 +50,11 @@ function RegisterForm() {
       const verifyUrl = new URL("/verify-otp", window.location.origin);
       verifyUrl.searchParams.set("email", values.email);
       if (nextPath) verifyUrl.searchParams.set("next", nextPath);
+      // Carried through OTP verify → login, then applied via PATCH .../preferences
+      // right after first login — the register/verify steps have no session yet
+      // to call that authenticated endpoint directly.
+      if (preferences.deliveryPreference) verifyUrl.searchParams.set("deliveryPreference", preferences.deliveryPreference);
+      if (preferences.paymentMethod) verifyUrl.searchParams.set("paymentMethod", preferences.paymentMethod);
       router.push(`${verifyUrl.pathname}${verifyUrl.search}`);
     } catch (error) {
       if (error instanceof ClientApiError) {
@@ -99,6 +109,10 @@ function RegisterForm() {
           Escolher Comerciante, Entregador ou Parceiro de Mobilidade cria a sua conta como Cliente enquanto o
           pedido aguarda aprovação da administração.
         </p>
+
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <PreferencesSection value={preferences} onChange={setPreferences} />
+        </div>
 
         {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
 

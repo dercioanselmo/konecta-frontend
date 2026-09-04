@@ -16,6 +16,8 @@ function VerifyOtpForm() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") ?? "";
   const nextPath = searchParams.get("next");
+  const deliveryPreference = searchParams.get("deliveryPreference");
+  const paymentMethod = searchParams.get("paymentMethod");
   const [formError, setFormError] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
@@ -34,6 +36,8 @@ function VerifyOtpForm() {
       loginUrl.searchParams.set("verified", "1");
       loginUrl.searchParams.set("email", email);
       if (nextPath) loginUrl.searchParams.set("next", nextPath);
+      if (deliveryPreference) loginUrl.searchParams.set("deliveryPreference", deliveryPreference);
+      if (paymentMethod) loginUrl.searchParams.set("paymentMethod", paymentMethod);
       router.push(`${loginUrl.pathname}${loginUrl.search}`);
     } catch (error) {
       if (error instanceof ClientApiError) {

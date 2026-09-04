@@ -3,9 +3,11 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
+import { authApiFetch } from "@/lib/auth/authApi";
 import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
 import { roleHomePath } from "@/lib/auth/roles";
+import type { UserPreferences } from "@/lib/auth/types";
 import { ProfileForm } from "./ProfileForm";
 
 export default async function ProfilePage() {
@@ -13,6 +15,18 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
   if (!isProfileComplete(user)) redirect("/complete-profile");
   if (mustChangePassword(user)) redirect("/change-password");
+
+  let preferences: UserPreferences = { deliveryPreference: null, paymentMethod: null };
+  const accessToken = await getValidAccessToken();
+  if (accessToken) {
+    try {
+      preferences = await authApiFetch<UserPreferences>("/api/v1/users/me/preferences", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch {
+      // Fall back to the empty shape — ProfileForm still works, just starts unset.
+    }
+  }
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col px-4 py-6 sm:px-6">
@@ -28,7 +42,7 @@ export default async function ProfilePage() {
       </header>
 
       <main className="flex-1 py-6">
-        <ProfileForm user={user} />
+        <ProfileForm user={user} preferences={preferences} />
       </main>
     </div>
   );

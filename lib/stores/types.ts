@@ -34,6 +34,20 @@ export interface CreateSubcategoryPayload {
 
 export type UpdateSubcategoryPayload = Omit<CreateSubcategoryPayload, "code">;
 
+/**
+ * Row on the customer-facing "shops in this category, nearest first" page.
+ * Backed by a PROPOSED endpoint — see API_REFERENCE_MERCHANT_DASHBOARD.md's
+ * "Proximity shop browsing" section. Not implemented on the backend yet.
+ */
+export interface NearbyShop {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  coverUrl: string | null;
+  isOpen: boolean;
+  distanceKm: number;
+}
+
 export interface Subcategory {
   id: string;
   categoryId: string;

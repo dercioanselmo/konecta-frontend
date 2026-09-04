@@ -35,7 +35,7 @@ function LoginForm() {
     try {
       const user = await login(values.email, values.password);
       if (!isProfileComplete(user)) {
-        router.push("/complete-profile");
+        router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");
         return;
       }
       router.push(nextPath || ROLE_HOME_CLIENT[user.role]);
@@ -51,7 +51,9 @@ function LoginForm() {
           // route handler 307s onward to Google's OAuth consent screen, the
           // same external redirect the "Continuar com Google" link below
           // triggers — a client-side transition can't follow that.
-          window.location.assign("/api/auth/google/start");
+          window.location.assign(
+            nextPath ? `/api/auth/google/start?next=${encodeURIComponent(nextPath)}` : "/api/auth/google/start",
+          );
           return;
         }
         if (error.code === "INVALID_CREDENTIALS") {
@@ -114,7 +116,7 @@ function LoginForm() {
       </div>
 
       <a
-        href="/api/auth/google/start"
+        href={nextPath ? `/api/auth/google/start?next=${encodeURIComponent(nextPath)}` : "/api/auth/google/start"}
         className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover"
       >
         <svg viewBox="0 0 24 24" className="h-4.5 w-4.5">

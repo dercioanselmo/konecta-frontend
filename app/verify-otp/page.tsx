@@ -15,6 +15,7 @@ function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") ?? "";
+  const nextPath = searchParams.get("next");
   const [formError, setFormError] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
@@ -29,7 +30,11 @@ function VerifyOtpForm() {
     setFormError(null);
     try {
       await verifyOtp(email, code, "REGISTER");
-      router.push(`/login?verified=1&email=${encodeURIComponent(email)}`);
+      const loginUrl = new URL("/login", window.location.origin);
+      loginUrl.searchParams.set("verified", "1");
+      loginUrl.searchParams.set("email", email);
+      if (nextPath) loginUrl.searchParams.set("next", nextPath);
+      router.push(`${loginUrl.pathname}${loginUrl.search}`);
     } catch (error) {
       if (error instanceof ClientApiError) {
         const messages: Record<string, string> = {

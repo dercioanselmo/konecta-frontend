@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,8 +14,10 @@ import { registerCustomer, fetchNeighborhoods, ClientApiError } from "@/lib/auth
 import { ROLE_LABELS, REQUESTABLE_ROLES } from "@/lib/auth/roleLabels";
 import type { Neighborhood, RequestableRole } from "@/lib/auth/types";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -40,7 +42,10 @@ export default function RegisterPage() {
         ...values,
         requestedRole: values.requestedRole ? (values.requestedRole as RequestableRole) : undefined,
       });
-      router.push(`/verify-otp?email=${encodeURIComponent(values.email)}`);
+      const verifyUrl = new URL("/verify-otp", window.location.origin);
+      verifyUrl.searchParams.set("email", values.email);
+      if (nextPath) verifyUrl.searchParams.set("next", nextPath);
+      router.push(`${verifyUrl.pathname}${verifyUrl.search}`);
     } catch (error) {
       if (error instanceof ClientApiError) {
         if (error.code === "EMAIL_ALREADY_REGISTERED") {
@@ -104,10 +109,21 @@ export default function RegisterPage() {
 
       <p className="mt-6 text-center text-sm text-muted">
         Já tem conta?{" "}
-        <Link href="/login" className="font-semibold text-foreground underline-offset-4 hover:underline">
+        <Link
+          href={nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login"}
+          className="font-semibold text-foreground underline-offset-4 hover:underline"
+        >
           Entrar
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

@@ -13,7 +13,7 @@ import { completeProfileSchema, type CompleteProfileFormValues } from "@/lib/aut
 import { completeProfile, fetchNeighborhoods, ClientApiError, ROLE_HOME_CLIENT } from "@/lib/auth/client";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
 
-export function CompleteProfileForm({ user }: { user: UserProfile }) {
+export function CompleteProfileForm({ user, nextPath }: { user: UserProfile; nextPath?: string }) {
   const router = useRouter();
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function CompleteProfileForm({ user }: { user: UserProfile }) {
     setFormError(null);
     try {
       const updated = await completeProfile(values);
-      router.push(ROLE_HOME_CLIENT[updated.role]);
+      router.push(nextPath || ROLE_HOME_CLIENT[updated.role]);
     } catch (error) {
       if (error instanceof ClientApiError) {
         setFormError(error.details?.join(" ") ?? error.message);

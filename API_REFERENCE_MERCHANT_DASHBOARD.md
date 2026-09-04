@@ -661,6 +661,76 @@ categories returning correctly different shop sets.
 
 ---
 
+## RESOLVED — Proximity shop browsing
+
+**Done, live-verified 2026-09-04** — implemented exactly as proposed,
+including the exclude-unlocated-shops decision. First attempt still
+401'd (same stale-`:8092`-process pattern as Rounds 5b/8b — the process
+predated the fix); after a restart, verified directly: a valid request
+returns real shops nearest-first with `distanceKm`, a missing `lat` or
+`categoryId` each correctly `400 VALIDATION_ERROR`s with a field-specific
+message (not a bare 500). Also verified through the **actual running
+frontend app**, not just direct backend calls: logged in for a real
+session, hit `/categories/{id}` — the shop grid now renders a real shop
+with its real logo photo, no more fallback error. Leaving the original
+proposal below for reference.
+
+**Ask** (2026-09-04): the customer flow now is — anonymous visitor
+browses category tiles on `/home` (no login needed) → clicks a category
+→ gated to create an account + set their location (reusing
+`PATCH /api/v1/users/me/location` from the Security service) → lands on
+a grid of shops in that category, nearest-first, each with a photo. This
+is the first real use of "Proximity first" (AGENTS.md §5.2).
+
+**New endpoint**: `GET /api/v1/shops` — **public**, no auth required
+(matches `/meta/categories`; the login/location gate is a frontend UX
+decision, not something this endpoint needs to enforce).
+
+**Query params**
+
+| Param | Type | Notes |
+|---|---|---|
+| `categoryId` | uuid, required | |
+| `lat` | decimal, required | Caller's own latitude — this service has no way to look up a user's location itself (no client to Security service), so the frontend passes what it already has from the logged-in customer's profile. |
+| `lng` | decimal, required | |
+| `page` | int | Default 0 |
+| `size` | int | Default 20 |
+
+**Behavior**: only `status=ACTIVE` shops carrying that category, sorted
+by distance from `(lat, lng)` ascending (Haversine against the shop's
+own `latitude`/`longitude` from the location feature — §1 above).
+**Proposal: exclude shops with no location set** — they can't be
+meaningfully ranked, and it's a natural incentive for a merchant to
+finish their shop setup. (Alternative: append them unsorted at the end —
+your call, either is fine for v1.)
+
+**Response `200 OK`** — standard `Page<T>` envelope, each row:
+
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "logoUrl": "string | null",
+  "coverUrl": "string | null",
+  "isOpen": true,
+  "distanceKm": 1.4
+}
+```
+
+**Frontend status**: fully built and live-verified end-to-end
+(`/categories/{id}` — the shop grid; `/categories/{id}/access` — the
+anonymous gate with a "why" message and Criar conta/Entrar CTAs;
+`/categories/{id}/set-location` — reuses the existing location picker
+for a logged-in user who hasn't set one yet; `next=` threaded through
+register → OTP verify → login → complete-profile **and** Google OAuth
+so the user lands back where they were headed regardless of which auth
+path they took — Google OAuth's `next` preservation turned out to need
+no backend change, just a short-lived cookie set on our own domain
+before the redirect to Google, since that survives the round trip
+untouched).
+
+---
+
 ## What's not here
 
 Everything below is **out of scope for this service**, per its

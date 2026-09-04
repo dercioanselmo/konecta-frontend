@@ -39,15 +39,22 @@ export async function GET(request: Request) {
     maxAge: 60 * 60 * 24 * 14,
   });
 
+  // Set by /api/auth/google/start if the user was mid-flow trying to reach
+  // somewhere specific (e.g. the category-browsing gate) — one-time use.
+  const nextPath = store.get("konecta_oauth_next")?.value;
+  store.delete("konecta_oauth_next");
+
   // Google OAuth auto-creates/links the account with only email + name — it
   // never collects phone/address/neighborhood. Route those users through
   // /complete-profile before letting them into a role shell.
-  let destination = "/complete-profile";
+  let destination = nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile";
   try {
     const user = await authApiFetch<UserProfile>("/api/v1/users/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    destination = isProfileComplete(user) ? roleHomePath(user.role) : "/complete-profile";
+    if (isProfileComplete(user)) {
+      destination = nextPath || roleHomePath(user.role);
+    }
   } catch {
     // Fall back to /complete-profile — getCurrentUser() there will bounce to
     // /login if the session turns out to be invalid after all.

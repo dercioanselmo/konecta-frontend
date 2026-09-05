@@ -31,7 +31,13 @@ export default async function ProductDetailPage({
       {loadError || !product ? (
         <p className="mt-6 text-sm text-red-500">{loadError ?? "Produto não encontrado."}</p>
       ) : (
-        <main className="mt-6 flex flex-1 flex-col gap-6 sm:flex-row sm:gap-8">
+        // `flex-1` here lets this block claim the leftover space below the
+        // header on a tall viewport, so `justify-center` can center the
+        // photo+details as a group; `items-center` stops the default flex
+        // `align-items: stretch` from doing what it did before — forcing
+        // the image column to stretch to match (or fill) the container's
+        // full height instead of keeping its own natural, square size.
+        <main className="mt-6 flex flex-1 flex-col items-center justify-center gap-6 sm:flex-row sm:gap-8">
           {/* Same square ratio as the browsing grid's tiles — just much
               bigger, since this is the one big hero photo instead of a
               small list thumbnail. Built with the old padding-percentage

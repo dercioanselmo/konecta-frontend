@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSWRConfig } from "swr";
-import { Button } from "@/components/ui/Button";
-import { addToCart, CartApiError } from "@/lib/cart/client";
+import { useAddToCart } from "@/lib/cart/useAddToCart";
+import { CartConflictModal } from "./CartConflictModal";
 import type { PublicProduct } from "@/lib/stores/types";
 
 interface ProductGridProps {
@@ -15,57 +15,31 @@ interface ProductGridProps {
   loginNext: string;
 }
 
-interface Conflict {
-  productId: string;
-  currentStoreName: string | null;
-}
-
 export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: ProductGridProps) {
   const router = useRouter();
-  const { mutate } = useSWRConfig();
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const { attemptAdd, replaceCart, cancelConflict, pendingId, error, conflict } = useAddToCart(shopId);
   const [addedId, setAddedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<Conflict | null>(null);
 
-  const attemptAdd = async (productId: string) => {
+  const handleAdd = async (e: React.MouseEvent, productId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!isLoggedIn) {
       router.push(`/login?next=${encodeURIComponent(loginNext)}`);
       return;
     }
-    setError(null);
-    setPendingId(productId);
-    try {
-      await addToCart(shopId, productId, 1);
-      await mutate("cart");
+    const ok = await attemptAdd(productId, 1);
+    if (ok) {
       setAddedId(productId);
       setTimeout(() => setAddedId((id) => (id === productId ? null : id)), 1500);
-    } catch (err) {
-      if (err instanceof CartApiError && err.code === "STORE_MISMATCH") {
-        setConflict({ productId, currentStoreName: err.currentStoreName ?? null });
-      } else {
-        setError(err instanceof CartApiError ? err.message : "Não foi possível adicionar ao carrinho.");
-      }
-    } finally {
-      setPendingId(null);
     }
   };
 
-  const replaceCart = async () => {
-    if (!conflict) return;
-    const productId = conflict.productId;
-    setConflict(null);
-    setPendingId(productId);
-    try {
-      await fetch("/api/cart", { method: "DELETE" });
-      await addToCart(shopId, productId, 1);
-      await mutate("cart");
+  const handleReplace = async () => {
+    const productId = conflict?.productId;
+    const ok = await replaceCart();
+    if (ok && productId) {
       setAddedId(productId);
       setTimeout(() => setAddedId((id) => (id === productId ? null : id)), 1500);
-    } catch (err) {
-      setError(err instanceof CartApiError ? err.message : "Não foi possível substituir o carrinho.");
-    } finally {
-      setPendingId(null);
     }
   };
 
@@ -78,7 +52,11 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
       ) : (
         <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5 md:grid-cols-6">
           {products.map((p) => (
-            <div key={p.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+            <Link
+              key={p.id}
+              href={`/stores/${shopId}/products/${p.id}`}
+              className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition-colors hover:bg-surface-hover"
+            >
               <div className="relative aspect-square w-full bg-background">
                 {p.photoUrl ? (
                   <Image src={p.photoUrl} alt={p.name} fill sizes="120px" className="object-cover" unoptimized />
@@ -93,7 +71,7 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
               <button
                 type="button"
                 disabled={pendingId === p.id || p.inStock === false}
-                onClick={() => attemptAdd(p.id)}
+                onClick={(e) => handleAdd(e, p.id)}
                 className="m-1.5 mt-1 flex h-7 items-center justify-center rounded-lg bg-brand-green text-[11px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-60"
               >
                 {p.inStock === false
@@ -104,31 +82,13 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
                       ? "…"
                       : "Adicionar"}
               </button>
-            </div>
+            </Link>
           ))}
         </div>
       )}
 
       {conflict ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6">
-          <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl bg-surface p-5">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Substituir carrinho?</h2>
-              <p className="mt-1 text-sm text-muted">
-                O seu carrinho já tem produtos de {conflict.currentStoreName ?? "outra loja"}. Só pode ter produtos
-                de uma loja de cada vez.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button type="button" className="w-full" onClick={replaceCart}>
-                Substituir carrinho
-              </Button>
-              <Button type="button" variant="secondary" className="w-full" onClick={() => setConflict(null)}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </div>
+        <CartConflictModal conflict={conflict} onReplace={handleReplace} onCancel={cancelConflict} />
       ) : null}
     </>
   );

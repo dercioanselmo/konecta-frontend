@@ -537,3 +537,20 @@ overridden: staff should be visible/manageable by Admin too, matching
 - Backend flagged a mechanism detail worth remembering: `ProductStatus.OUT_OF_STOCK` is never actually assigned anywhere in that codebase — a zero-stock product stays `ACTIVE` and still lists normally; `inStock: false` is the *only* signal, there's no separate status to also check. Already exactly what the frontend relies on — logged in the doc so it's not rediscovered as a surprise later.
 - `API_REFERENCE_MERCHANT_DASHBOARD.md` updated to RESOLVED, original proposal kept below for reference.
 - **Feature is fully closed.**
+
+## Round 20: Product detail page (2026-09-05)
+
+- Ask: clicking a product opens a detail page — big photo, name, category/subcategory below it, price, description, quantity + add-to-cart, with a back-to-products link. The grid keeps its existing quick-add button unchanged.
+- **Extracted the add-to-cart + STORE_MISMATCH-conflict logic out of `ProductGrid` into a shared `lib/cart/useAddToCart.ts` hook + `components/customer/CartConflictModal.tsx`**, specifically so the new detail page's "Adicionar ao carrinho" button and the grid's quick-add button share one implementation instead of duplicating the replace-cart flow. `ProductGrid.tsx` refactored to use the hook (behavior unchanged) and now wraps each tile in a `Link` to `/stores/{shopId}/products/{productId}`, with the existing Add button kept as a nested click target using `stopPropagation` so tapping it doesn't also navigate to the detail page.
+- **New route** `app/stores/[storeId]/products/[productId]/page.tsx` — photo + details side-by-side on wider screens (stacked on mobile), name in large text, category/subcategory shown just below it, price, description, then `ProductDetailActions.tsx` (quantity stepper + add-to-cart, same shared hook/modal). Back link resolves to the exact subcategory grid the product belongs to (via a new `subcategoryId` field on the detail response), not just the shop page generically.
+- **One new backend endpoint proposed**, not yet built: `GET /api/v1/shops/{shopId}/products/{productId}` — public single-product detail, mirrors the list endpoint's `inStock`-boolean-not-raw-quantity convention, denormalizes category/subcategory names onto the row like the merchant-side `Product` model already does. Full spec in `API_REFERENCE_MERCHANT_DASHBOARD.md`'s new "PROPOSED — Public single-product detail" section.
+- Live-verified: grid tiles correctly link to the new detail-page URLs; the detail page itself degrades gracefully (clean error message, not a crash) since the endpoint doesn't exist yet.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 20b: Public single-product detail — CLOSED, live-verified 2026-09-05
+
+- Backend implemented exactly as proposed, including the deliberate departure from the other two public shop endpoints: an unknown product and a product requested through the wrong shop's id both collapse into `404 PRODUCT_NOT_FOUND` (no distinct `SHOP_NOT_FOUND` here, per the ask's explicit error list) — didn't reuse `StoreService.getActivePublic`, the shop-ACTIVE check is inline in `ProductService.getPublicDetail` with a new `StoreRepository` dependency.
+- **Live-verified directly against the backend**: a real product returns the full row (price/category/subcategory cross-checked against the same product's list-endpoint data — consistent); both a genuinely unknown product id and a real product requested via a different shop's id correctly `404 PRODUCT_NOT_FOUND`.
+- **Also re-verified through the real running frontend app**: `/stores/{id}/products/{id}` renders the real name ("Camisa Social"), "Moda · Roupa Masculina", "1319.50 MT", and an enabled "Adicionar ao carrinho" button.
+- `API_REFERENCE_MERCHANT_DASHBOARD.md` updated to RESOLVED, original proposal kept below for reference.
+- **Feature is fully closed.**

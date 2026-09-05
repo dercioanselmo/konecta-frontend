@@ -901,6 +901,75 @@ correct either way.
 
 ---
 
+## RESOLVED — Public single-product detail
+
+**Done, live-verified 2026-09-05** — exact shape as proposed. Confirmed
+directly against the backend: a real product returns the full row
+(price/category/subcategory all correct, cross-checked against the same
+product's data from the list endpoint); an unknown product id and a
+product requested through the wrong shop's id both correctly collapse
+into `404 PRODUCT_NOT_FOUND` — the deliberate departure from the other
+two public shop endpoints (which surface a distinct `SHOP_NOT_FOUND`)
+holds up exactly as described. Also re-verified through the actual
+running frontend app — `/stores/{id}/products/{id}` renders the real
+name, "Moda · Roupa Masculina", price, and an enabled "Adicionar ao
+carrinho" button. Leaving the original proposal below for reference.
+
+## WITHDRAWN (superseded above) — Public single-product detail (2026-09-05)
+
+**Ask**: clicking a product on the browsing grid opens a detail page —
+big photo, name, category/subcategory, price, description, quantity +
+add-to-cart. No public single-product `GET` exists today, only the list
+(`GET /api/v1/shops/{shopId}/products`, which is intentionally minimal).
+
+**New endpoint**: `GET /api/v1/shops/{shopId}/products/{productId}` —
+public, no auth (matches the rest of this browsing surface).
+
+**Response `200 OK`**:
+
+```json
+{
+  "id": "uuid",
+  "shopId": "uuid",
+  "name": "string",
+  "description": "string",
+  "photoUrl": "string | null",
+  "price": 350.0,
+  "inStock": true,
+  "categoryName": "string | null",
+  "subcategoryId": "uuid | null",
+  "subcategoryName": "string | null"
+}
+```
+
+- `inStock` — same boolean-only convention as the list endpoint, no raw
+  quantity.
+- `subcategoryId` — lets the page's "← Produtos" back link return to the
+  exact subcategory grid the customer came from, not just the shop page.
+- `categoryName`/`subcategoryName` denormalized directly onto the row
+  (same pattern as the merchant-side `Product` model) so the page doesn't
+  need a second call.
+
+**Errors**: `404 PRODUCT_NOT_FOUND` for an unknown id, one that belongs
+to a different shop, or a product whose shop isn't `ACTIVE`.
+
+**Frontend status**: fully built —
+`app/stores/[storeId]/products/[productId]/page.tsx` (photo + details,
+side-by-side on wider screens, stacked on mobile) and
+`ProductDetailActions.tsx` (quantity stepper + add-to-cart, reusing the
+same `useAddToCart` hook and `CartConflictModal` the product grid uses —
+extracted during this round specifically so the grid's quick-add and the
+detail page's add button share one implementation of the
+`STORE_MISMATCH` conflict flow). Grid tiles in
+`components/customer/ProductGrid.tsx` now link to this page, with the
+existing "Adicionar" quick-add button kept exactly as it was (a nested
+click target with `stopPropagation`, so tapping it doesn't also
+navigate). Degrades gracefully — confirmed live — showing a clean error
+under the header rather than crashing, since the endpoint doesn't exist
+yet.
+
+---
+
 ## What's not here
 
 Everything below is **out of scope for this service**, per its

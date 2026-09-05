@@ -1,0 +1,71 @@
+import Image from "next/image";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import { storesApiFetch } from "@/lib/stores/storesApi";
+import { getCurrentUser } from "@/lib/auth/session";
+import { ApiError } from "@/lib/auth/types";
+import type { PublicProductDetail } from "@/lib/stores/types";
+import { ProductDetailActions } from "./ProductDetailActions";
+
+export default async function ProductDetailPage({
+  params,
+}: PageProps<"/stores/[storeId]/products/[productId]">) {
+  const { storeId, productId } = await params;
+  const user = await getCurrentUser();
+
+  let product: PublicProductDetail | null = null;
+  let loadError: string | null = null;
+  try {
+    product = await storesApiFetch<PublicProductDetail>(`/api/v1/shops/${storeId}/products/${productId}`);
+  } catch (err) {
+    loadError = err instanceof ApiError ? err.message : "Não foi possível carregar o produto.";
+  }
+
+  const backHref = product?.subcategoryId
+    ? `/stores/${storeId}/subcategories/${product.subcategoryId}`
+    : `/stores/${storeId}`;
+
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6">
+      <CustomerHeader user={user} backHref={backHref} backLabel="← Produtos" />
+
+      {loadError || !product ? (
+        <p className="mt-6 text-sm text-red-500">{loadError ?? "Produto não encontrado."}</p>
+      ) : (
+        <main className="mt-6 flex flex-1 flex-col gap-6 sm:flex-row sm:gap-8">
+          <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-2xl border border-border bg-surface sm:w-80">
+            {product.photoUrl ? (
+              <Image src={product.photoUrl} alt={product.name} fill sizes="(min-width: 640px) 320px, 100vw" className="object-cover" unoptimized />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-muted">Sem foto</div>
+            )}
+          </div>
+
+          <div className="flex flex-1 flex-col gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{product.name}</h1>
+              {product.categoryName || product.subcategoryName ? (
+                <p className="mt-1 text-sm text-muted">
+                  {[product.categoryName, product.subcategoryName].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+
+            <p className="text-xl font-bold text-foreground">
+              {product.price != null ? `${product.price.toFixed(2)} MT` : "Preço indisponível"}
+            </p>
+
+            <p className="whitespace-pre-line text-sm text-muted">{product.description}</p>
+
+            <ProductDetailActions
+              productId={product.id}
+              shopId={storeId}
+              inStock={product.inStock}
+              isLoggedIn={!!user}
+              loginNext={`/stores/${storeId}/products/${productId}`}
+            />
+          </div>
+        </main>
+      )}
+    </div>
+  );
+}

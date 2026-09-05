@@ -78,6 +78,24 @@ export interface PublicProduct {
   inStock?: boolean;
 }
 
+/**
+ * Full product detail for the customer-facing product page. PROPOSED —
+ * no public single-product endpoint exists yet, see
+ * API_REFERENCE_MERCHANT_DASHBOARD.md's "public product detail" section.
+ */
+export interface PublicProductDetail {
+  id: string;
+  shopId: string;
+  name: string;
+  description: string;
+  photoUrl: string | null;
+  price: number | null;
+  inStock: boolean;
+  categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+}
+
 export interface Subcategory {
   id: string;
   categoryId: string;

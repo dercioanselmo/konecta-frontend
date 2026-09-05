@@ -110,11 +110,11 @@ Assume (or stub only if the user says services are not ready) APIs for catalog, 
 
 These are business rules from the KONECTA BRD. The UI must make them obvious.
 
-1. **One merchant per cart** — A cart belongs to exactly one store. Adding a product from another store must block mix and offer replace cart or finish current order.
+1. **One merchant per cart, multiple carts per customer** — A cart belongs to exactly one store, but a customer may hold **one active cart per store** at the same time (e.g. a cart at Store A waiting for it to open, and a separate cart being built at Store B). Adding a product for a store that already has an active cart adds/updates a line in **that store's** cart — it never merges into or replaces a different store's cart. There is no "replace cart" prompt anymore: browsing a second store simply opens/continues that store's own cart alongside the first. A customer cannot have two separate carts for the *same* store — a second add to an already-carted store is always a line change on the existing one.
 2. **Proximity first** — Default lists sort by distance from user location (or selected location). User may open map / change area to browse elsewhere.
 3. **Total price** — Always show product price + delivery fee = total where delivery applies.
 4. **Catalog prices include IVA** — Display shelf price as-is; **invoice** document shows base + IVA breakdown.
-5. **Store open/closed** — Show hours and open/closed state. If closed, user may still place an order that stays pending until open (`PENDING_STORE_OPEN`), with clear messaging.
+5. **Store open/closed** — Show hours and open/closed state. **A closed store blocks checkout finalization outright — payment must never start while the store is closed, and no order is ever created for a closed-store attempt** (not even a pending one — `PENDING_STORE_OPEN` plays no part in this flow). Instead, whatever the customer filled in on the checkout screen (delivery mode/address, payment method, contacts) is **saved onto that cart itself** as a draft, and the cart just sits there — items plus draft — until the customer comes back on their own once the store is open. Nothing auto-fires when it opens; resuming is manual (see the Cart section's cart-icon/switcher routing, which sends the customer straight back to a pre-filled checkout when a cart already has a saved draft).
 6. **Payments** — Pay via M-Pesa, e-Mola, Visa, or COD as enabled. **Per-transaction split** is handled by the payments API (merchant amount + KONECTA commission). **No “Fecho do Dia” manual payout UI.**
 7. **Order tracking** — Customer sees status timeline and ETA (distance + courier vehicle type when delivery).
 8. **Courier** — Earnings visible **before** accept/reject. Customer **phone only after** job accepted.
@@ -259,6 +259,8 @@ Display a clear timeline. Support at least:
 
 `CREATED` → `PAID` → optional `PENDING_STORE_OPEN` → `STORE_CONFIRMED` → `PREPARING` → `READY_FOR_PICKUP` → (`COURIER_ASSIGNED` → `PICKED_UP` → `IN_TRANSIT`) → `DELIVERED`  
 Also `CANCELLED` / `REFUNDED`.
+
+`PENDING_STORE_OPEN` plays **no part** in the current flow — per rule 5 in §5, no order is ever created while a store is closed, so this status should never appear on a new order. Leave it in the enum/label map only in case it's returned for some unrelated reason; don't design any UI around expecting it.
 
 Pickup path skips courier states. Copy in Portuguese, human-readable (not raw enum-only).
 
@@ -426,16 +428,18 @@ This report drives `context.md` on the Cart service. **Do not assume undocumente
 
 | ID | Rule |
 |----|------|
-| C-01 | Cart belongs to **exactly one** `storeId`. |
-| C-02 | All lines must be products of that store. |
-| C-03 | Adding a product from another store **must not** merge silently — show replace / cancel (and optional “go to cart”). |
+| C-01 | Each individual cart belongs to **exactly one** `storeId`. A customer may hold **multiple concurrent carts**, at most **one per store** — never two carts for the same store. |
+| C-02 | All lines in a given cart must be products of that cart's store. |
+| C-03 | Adding a product for a store that already has an active cart **updates that store's own cart** (new line, or qty bump on an existing line) — it is never treated as a conflict and never touches any other store's cart. There is no cross-store merge and no "replace cart" prompt; each store's cart is independent. |
 | C-04 | Show store name (and logo if available) on cart. |
 | C-05 | Prices are **IVA-inclusive** catalog prices. |
 | C-06 | Quantities are integers ≥ 1; max bounded by available stock when known. |
 | C-07 | Subtotal = sum of line totals; focus cart on **product subtotal** (delivery fee is checkout — show only as optional estimate labeled as such). |
-| C-08 | Badge on cart icon reflects total item quantity (define once and stay consistent). |
+| C-08 | Badge on cart icon reflects total item quantity **summed across every active cart** (define once and stay consistent). |
 | C-09 | Empty cart: clear empty state + CTA to continue shopping. |
 | C-10 | “Ir para checkout” enabled only if cart non-empty and last validation succeeded. |
+| C-11 | A customer picks **which cart** to view/act on when they have more than one — e.g. a cart-switcher/list showing each active cart by store name, item count, and that store's open/closed state. Opening "Ir para checkout" always goes to *that* store's checkout, never a merged view of every cart. |
+| C-12 | **Global cart-icon click routing**: tapping the header cart icon, when the customer has **more than one** active cart, opens the cart switcher (C-11). With **exactly one** active cart, skip the switcher entirely and go straight to: **`/checkout` for that store, pre-filled from its saved checkout draft**, if that cart has one (see the Checkout section's §4.8) — or plain `/cart` for that store if it doesn't. Selecting a cart from the switcher applies this same draft-or-plain-cart routing. |
 
 **Out of scope this phase:** address, pickup vs delivery choice, payment methods, order creation, COD, M-Pesa.
 
@@ -443,9 +447,8 @@ This report drives `context.md` on the Cart service. **Do not assume undocumente
 
 # 5. Screens and UX
 
-- **Cart page** (`/cart` or project convention): lines, steppers, remove, subtotal, store header, primary CTA.
-- **Add to cart** from product (and list if applicable): toast + badge update.
-- **Conflict modal** when `storeId` differs.
+- **Cart page** (`/cart` or project convention): if the customer has more than one active cart, a cart switcher/list (store name/logo, item count, open/closed badge) sits above the line-item view; selecting one shows that store's lines, steppers, remove, subtotal, store header, primary CTA.
+- **Add to cart** from product (and list if applicable): toast + badge update — badge reflects the sum across **all** the customer's active carts (see C-08).
 - Loading/skeleton while fetching or revalidating.
 - Inline errors per line (out of stock, price changed, product inactive).
 - Mobile-first: large steppers, sticky CTA.
@@ -464,8 +467,8 @@ Reuse bottom nav / header patterns already in the app.
 
 # 7. State management
 
-- Prefer server state via TanStack Query / SWR keyed by `['cart']` (and user id).
-- After mutations (add/update/remove/clear): invalidate or patch cart query.
+- Prefer server state via TanStack Query / SWR keyed by `['carts']` (list of the customer's active carts) — this replaces the old single-cart `['cart']` key now that a customer can hold more than one.
+- After mutations (add/update/remove/clear) on any one cart: invalidate or patch that cart's entry in the list; don't force a full refetch of every other cart unnecessarily.
 - Do not keep a parallel “shadow” cart that can diverge from API without sync.
 
 ---
@@ -474,8 +477,9 @@ Reuse bottom nav / header patterns already in the app.
 
 - [ ] User can add product; badge updates
 - [ ] Same-store second product updates qty or second line correctly
-- [ ] Other-store add shows conflict UI; no mixed store lines
-- [ ] Update qty and remove work; empty state when last item removed
+- [ ] Adding a product for a **different** store opens/updates a **second, independent** cart — no conflict modal, no mixed-store lines within either cart
+- [ ] Customer can see and switch between all their active carts
+- [ ] Update qty and remove work; empty state when last item removed (removing all lines from one cart doesn't affect the customer's other carts)
 - [ ] Subtotals compute correctly in UI from API data
 - [ ] Invalid stock/price states show messages; checkout CTA disabled when invalid
 - [ ] No checkout/payment screens shipped in this phase
@@ -486,7 +490,7 @@ Reuse bottom nav / header patterns already in the app.
 # 9. When in doubt
 
 - Cart ≠ Checkout.
-- One store only.
+- One store per cart — but a customer may have several carts, one per store.
 - Stock is validated via **Cart API** (which calls Stores-and-Stock); frontend does not own inventory math.
 - Always finish with **endpoint needs report** for backend.
 
@@ -519,7 +523,9 @@ Also:
 - Default **payment method** = customer’s preferred payment method from profile  
 - **Email and mobile phone** are captured on the order (prefill from profile; editable if product allows)
 
-**Out of scope unless user expands:** real payment provider integration, multi-store cart, full order history redesign, courier flows.
+**Out of scope unless user expands:** real payment provider integration, full order history redesign, courier flows.
+
+**Multi-cart note:** the customer may hold several active carts (one per store — see the Cart section's C-01/C-11). Checkout always operates on **one specific store's cart**, reached from that store's entry in the cart switcher. Nothing here merges carts across stores.
 
 ---
 
@@ -599,8 +605,18 @@ Single scrollable page (mobile-first) with clear sections:
 | Action | Behaviour |
 |--------|-----------|
 | Voltar ao carrinho | Navigate to cart; cart remains editable |
-| Confirmar e pagar (or equivalent CTA) | Call checkout place-order; on success → **Order screen** with `orderId`; cart should be empty server-side |
-| Failure | Stay on checkout; show API error (stock, closed store, validation) |
+| Confirmar e pagar (label changes to something like "Guardar e aguardar abertura" while the store is closed) | **Store open**: call checkout place-order; on success → **Order screen** with `orderId`; that store's cart (and any saved draft on it) is cleared server-side. **Store closed**: never calls place-order — instead saves the current form values (delivery mode/address, payment method, contacts) onto that store's cart as a checkout draft, and shows confirmation that it's saved for when the store opens. |
+| Failure | Stay on checkout; show API error (stock, validation, etc.) |
+
+## 4.8 Store-closed gating (payment must never start while closed — draft saved on the cart instead)
+
+| Rule | Detail |
+|------|--------|
+| Closed store | The screen still renders fully (delivery/payment sections, summary) so the customer can fill everything in ahead of time. The CTA's action changes from "place the order" to "save a checkout draft on this cart" (see the Cart section — this is a Cart-service call, not a Checkout-service one). No order/payment attempt is made at all until the store is actually open. |
+| Pre-fill on return | Opening `/checkout` for a cart that already has a saved draft pre-fills the form from that draft instead of from profile defaults — the customer sees exactly what they entered before, not a reset form. |
+| No auto-pending order | `PENDING_STORE_OPEN` plays no part here — no order exists at all until the customer actually completes checkout with the store open. |
+| Resuming | Manual, not automatic. The customer comes back on their own (via the cart icon/switcher's draft-aware routing — Cart section C-12) once the store is open, and completes checkout like normal. Nothing fires the moment the store opens. |
+| Store re-opens mid-session | If the customer already has `/checkout` open when the store's hours flip to open (poll or re-check open/closed state at a sensible interval, or at minimum re-check on focus/re-entry), swap the CTA back to "Confirmar e pagar" and re-enable it without requiring a full page reload. |
 
 ## 4.7 After success
 
@@ -624,10 +640,11 @@ If a field is missing, sensible defaults: delivery mode `DELIVERY` or `PICKUP` p
 
 # 6. Cart interaction
 
-- Checkout assumes **non-empty mono-store cart**.
-- If cart empty on entry → redirect to cart or home with message.
-- Re-fetch cart when entering checkout.
+- Checkout always targets **one specific store's cart** (non-empty, mono-store) — the customer arrives here already having picked which cart from the cart switcher.
+- If that cart is empty on entry → redirect to cart or home with message.
+- Re-fetch that cart (and the store's open/closed state) when entering checkout.
 - User may leave to cart, edit, return to checkout — **re-load** cart and re-run any quote/validate.
+- The customer's *other* carts (different stores) are unaffected by anything happening in this checkout session.
 
 ---
 
@@ -639,6 +656,9 @@ If a field is missing, sensible defaults: delivery mode `DELIVERY` or `PICKUP` p
 - [ ] Back to cart works; edits reflected when returning
 - [ ] Confirm calls checkout API; on success goes to Order screen with order id
 - [ ] No real payment provider; success path is automatic per backend
+- [ ] While the store is closed, the CTA saves a checkout draft **onto the cart** instead of calling place-order — no order/payment attempt is made at all
+- [ ] Reopening a cart with a saved draft (via the cart icon/switcher) lands on `/checkout` pre-filled from that draft, not from profile defaults
+- [ ] Cart + draft are preserved and checkout is resumable, unassisted, once the store opens — no auto-created pending order, `PENDING_STORE_OPEN` plays no part
 - [ ] End-of-slice **endpoint needs report** for backend agent
 
 ---
@@ -660,7 +680,8 @@ Checkout is exercised primarily as **Customer**.
 
 # 9. When in doubt
 
-- Checkout ≠ Cart; one store already enforced by cart.
+- Checkout ≠ Cart; one store already enforced by cart, though a customer may have several carts (one per store).
+- A closed store means **no payment attempt at all**, not a pending one — the CTA saves a draft on the cart instead of submitting.
 - Payment integration is stubbed; UI still collects method for the order record.
 - Always report backend endpoint needs after each slice.
 

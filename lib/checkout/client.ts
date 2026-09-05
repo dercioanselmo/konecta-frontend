@@ -30,8 +30,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function placeOrder(payload: CheckoutRequest): Promise<Order> {
-  return request("/api/checkout", { method: "POST", body: JSON.stringify(payload) });
+/**
+ * `idempotencyKey` should be generated once per checkout attempt and
+ * resent unchanged on any retry of that same attempt — see
+ * API_REFERENCE-checkout-service.md. Changing order details (address,
+ * payment method, etc.) before resubmitting counts as a new attempt and
+ * should get a fresh key.
+ */
+export function placeOrder(payload: CheckoutRequest, idempotencyKey: string): Promise<Order> {
+  return request("/api/checkout", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getOrder(orderId: string): Promise<Order> {

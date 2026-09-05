@@ -2,8 +2,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 /**
- * Server-only client for the proposed KONECTA-CHECKOUT-SERVICE — see
- * API_REFERENCE_CHECKOUT.md. Never import this from a client component.
+ * Server-only client for KONECTA-CHECKOUT-SERVICE (live, port 8094) — see
+ * API_REFERENCE-checkout-service.md. Never import this from a client component.
  */
 
 interface CheckoutServiceErrorBody {

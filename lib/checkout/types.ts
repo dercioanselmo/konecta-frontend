@@ -1,9 +1,5 @@
-// Types for the proposed KONECTA-CHECKOUT-SERVICE — see
-// API_REFERENCE_CHECKOUT.md for the full proposed contract. The service
-// doesn't exist yet; the UI is built fully against this contract and
-// degrades to a clean error state until it ships (per AGENTS.md's
-// Checkout section, unlike Cart this phase does NOT permit mocking —
-// no local stand-in here, this touches real order placement).
+// Types for the KONECTA-CHECKOUT-SERVICE (live, port 8094) — see
+// API_REFERENCE-checkout-service.md for the real contract.
 
 import type { PaymentMethod } from "@/lib/auth/types";
 
@@ -88,6 +84,7 @@ export type CheckoutErrorCode =
   | "ORDER_NOT_FOUND"
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
+  | "SERVICE_UNAVAILABLE"
   | "UNKNOWN_ERROR";
 
 export interface CheckoutErrorBody {

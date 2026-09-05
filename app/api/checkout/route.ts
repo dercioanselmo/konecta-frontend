@@ -8,10 +8,14 @@ export async function POST(request: Request) {
   if (accessToken instanceof NextResponse) return accessToken;
 
   const body = await request.json();
+  const idempotencyKey = request.headers.get("Idempotency-Key");
   try {
     const order = await checkoutApiFetch<Order>("/api/v1/checkout", {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
       body: JSON.stringify(body),
     });
     return NextResponse.json(order, { status: 201 });

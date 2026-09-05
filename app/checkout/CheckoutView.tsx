@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
@@ -57,6 +57,9 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
   const [contactPhone, setContactPhone] = useState(user.phone ?? "");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Generated once per checkout attempt; resent unchanged if the same
+  // submit is retried, so a network hiccup can't create a duplicate order.
+  const idempotencyKey = useRef(crypto.randomUUID());
 
   useEffect(() => {
     fetchNeighborhoods("Maputo").then(setNeighborhoods);
@@ -85,16 +88,19 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
 
     setSubmitting(true);
     try {
-      const order = await placeOrder({
-        deliveryMode,
-        deliveryAddress:
-          deliveryMode === "DELIVERY"
-            ? { address, city: "Maputo", neighborhood, latitude: position[0], longitude: position[1] }
-            : null,
-        paymentMethod,
-        contactEmail,
-        contactPhone,
-      });
+      const order = await placeOrder(
+        {
+          deliveryMode,
+          deliveryAddress:
+            deliveryMode === "DELIVERY"
+              ? { address, city: "Maputo", neighborhood, latitude: position[0], longitude: position[1] }
+              : null,
+          paymentMethod,
+          contactEmail,
+          contactPhone,
+        },
+        idempotencyKey.current,
+      );
       router.push(`/orders/${order.orderId}`);
     } catch (err) {
       setFormError(

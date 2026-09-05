@@ -269,7 +269,7 @@ export function ProductDetailView({
                 loading={uploadingPhoto}
                 onClick={() => fileInputRef.current?.click()}
               >
-                Enviar foto
+                Alterar foto
               </Button>
               <input
                 ref={fileInputRef}

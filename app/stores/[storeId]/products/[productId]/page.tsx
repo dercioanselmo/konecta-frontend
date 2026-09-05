@@ -25,19 +25,33 @@ export default async function ProductDetailPage({
     : `/stores/${storeId}`;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6">
+    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-1 flex-col px-4 py-6 sm:px-6">
       <CustomerHeader user={user} backHref={backHref} backLabel="← Produtos" />
 
       {loadError || !product ? (
         <p className="mt-6 text-sm text-red-500">{loadError ?? "Produto não encontrado."}</p>
       ) : (
         <main className="mt-6 flex flex-1 flex-col gap-6 sm:flex-row sm:gap-8">
-          <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-2xl border border-border bg-surface sm:w-80">
-            {product.photoUrl ? (
-              <Image src={product.photoUrl} alt={product.name} fill sizes="(min-width: 640px) 320px, 100vw" className="object-cover" unoptimized />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-muted">Sem foto</div>
-            )}
+          {/* Same square ratio as the browsing grid's tiles — just much
+              bigger, since this is the one big hero photo instead of a
+              small list thumbnail. Built with the old padding-percentage
+              technique rather than the `aspect-square` utility: as a flex
+              item inside a `flex-direction: column` container (the mobile
+              layout, before `sm:flex-row` kicks in), `aspect-ratio` doesn't
+              reliably determine a flex item's main-axis (height) size
+              across browsers — the box stretched taller than it was wide.
+              A zero-height spacer sized by `padding-top` percentage is
+              immune to that: it only depends on percentage-of-width, which
+              is universally supported regardless of any flex sizing quirk. */}
+          <div className="relative w-full shrink-0 sm:w-104">
+            <div className="pt-[100%]" />
+            <div className="absolute inset-0 overflow-hidden rounded-2xl border border-border bg-surface">
+              {product.photoUrl ? (
+                <Image src={product.photoUrl} alt={product.name} fill sizes="(min-width: 640px) 416px, 100vw" className="object-cover" unoptimized />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-muted">Sem foto</div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-1 flex-col gap-4">

@@ -491,4 +491,177 @@ Reuse bottom nav / header patterns already in the app.
 - Always finish with **endpoint needs report** for backend.
 
 
+# AGENTS.md — KONECTA Frontend (Checkout)
+
+You are a **principal-level full-stack engineer and AI implementation agent** building the **KONECTA** Next.js frontend **Checkout** flow.
+
+KONECTA is multi-merchant local commerce for **Mozambique** (Maputo-first). Mobile-first. UI copy in **Portuguese (MZ)**. Currency **MT**.
+
+Cart is **already implemented**. This phase is **Checkout only** (single screen), then navigation to the **Order** screen after simulated payment success.
+
+---
+
+# 1. What you are building
+
+One **Checkout screen** that combines three blocks on the **same page** (steps/sections, not separate routes unless the existing app pattern strongly prefers tabs on one URL):
+
+1. **Delivery mode + delivery location**
+2. **Payment mode + payment details**
+3. **Review / confirm** (order contacts + summary + submit)
+
+Also:
+
+- Prefill from **customer profile** (Security / user profile APIs already in the platform)
+- **Back to cart** to edit lines anytime before successful place-order
+- After **payment confirmed** → navigate to **Order detail** screen  
+  - **This phase:** payment always succeeds automatically (no real M-Pesa / e-Mola / Visa / COD gateway yet)
+- Default **delivery mode** = customer’s preferred mode from profile  
+- Default **payment method** = customer’s preferred payment method from profile  
+- **Email and mobile phone** are captured on the order (prefill from profile; editable if product allows)
+
+**Out of scope unless user expands:** real payment provider integration, multi-store cart, full order history redesign, courier flows.
+
+---
+
+# 2. Platform services (Eureka)
+
+| Eureka name | Local | Use from frontend |
+|-------------|-------|-------------------|
+| `KONECTA-SECURITY-SERVICE` | `:8091` | JWT, profile (address, geo, preferred delivery, preferred payment, email, phone) |
+| `KONECTA-STORES-AND-STOCK-SERVICE` | `:8092` | Store name/address/hours if needed for pickup display |
+| Cart service (already built) | (registered name/port as in project) | Load cart summary; user may return to edit |
+| **`KONECTA-CHECKOUT-SERVICE`** (new) | TBD | Place order / checkout confirm; returns order id |
+
+Always send `Authorization: Bearer <access_token>`.
+
+---
+
+# 3. How to work
+
+1. Inspect existing cart, auth, profile, and routing patterns before adding pages.
+2. Implement the single checkout page + navigation to order screen.
+3. **At the end of every implementation slice**, report in the prompt/notes the **backend endpoints** the UI needs (method, purpose, request fields, response fields, errors). This drives `context.md` on `konecta-checkout`.
+4. Do not invent payment provider SDKs in this phase — call checkout “confirm” and treat success as paid/confirmed per API contract.
+
+---
+
+# 4. Checkout screen — functional requirements
+
+## 4.1 Layout (one screen)
+
+Single scrollable page (mobile-first) with clear sections:
+
+| Section | Content |
+|---------|---------|
+| **A. Entrega** | Mode + location / pickup info |
+| **B. Pagamento** | Method + details placeholder |
+| **C. Contactos e resumo** | Email, phone, cart lines summary, totals, submit |
+| **Chrome** | Back link/button → **Cart**; store name; loading/error toasts |
+
+## 4.2 Delivery mode (`Levantar na loja` | `Receber`)
+
+| Rule | Detail |
+|------|--------|
+| Initial value | Customer **preferred delivery mode** from profile |
+| User can change | Toggle / radio between pickup and delivery |
+| **Receber (delivery)** | Show delivery address; initial = profile geolocation/address; user can **change** address (edit fields and/or map pin if maps already exist; otherwise address text + lat/lng if profile has them) |
+| **Levantar na loja** | Show store address, hours, distance if available; no customer delivery address required |
+| Validation | Delivery requires a usable address (and lat/lng if the API requires them); pickup requires cart store to accept pickup if flag exists |
+
+## 4.3 Payment mode
+
+| Rule | Detail |
+|------|--------|
+| Initial value | Customer **preferred payment method** from profile |
+| Options (UI ready) | Align with product: M-Pesa, e-Mola, Visa, COD (Cash on delivery) — show as selectable even if gateway not integrated |
+| This phase | Selecting a method + confirming checkout **auto-confirms payment** via backend (no external redirect) |
+| Details | Show method-specific hints only (e.g. “Pagamento na entrega” for COD); no real card capture PCI flow yet |
+
+## 4.4 Contacts on the order
+
+| Field | Behaviour |
+|-------|-----------|
+| Email | Prefill from profile; included in place-order payload |
+| Phone (celular) | Prefill from profile; included in place-order payload |
+| Editable | Yes, so the order can carry contact details used for this purchase |
+
+## 4.5 Summary
+
+- Lines from **current cart** (name, qty, unit price, line total)
+- Store name
+- Product **subtotal**
+- Delivery fee: show if API returns estimate; otherwise “Calculado na confirmação” / value from checkout response
+- **Total** from checkout quote/confirm response when available
+- Prices IVA-inclusive as elsewhere
+
+## 4.6 Actions
+
+| Action | Behaviour |
+|--------|-----------|
+| Voltar ao carrinho | Navigate to cart; cart remains editable |
+| Confirmar e pagar (or equivalent CTA) | Call checkout place-order; on success → **Order screen** with `orderId`; cart should be empty server-side |
+| Failure | Stay on checkout; show API error (stock, closed store, validation) |
+
+## 4.7 After success
+
+- Navigate to Order screen (e.g. `/orders/[orderId]` or project convention).
+- Order screen can be minimal in this phase (id, status, summary) if not fully built — wire navigation and pass id.
+
+---
+
+# 5. Profile fields expected (from Security / user profile)
+
+Use whatever the security/profile API already exposes. Conceptually:
+
+- Preferred delivery mode: `PICKUP` | `DELIVERY` (names may vary — map in client)
+- Preferred payment method
+- Default address / lat / lng / city / neighborhood
+- Email, phone
+
+If a field is missing, sensible defaults: delivery mode `DELIVERY` or `PICKUP` per product decision; payment `COD` or first enabled method; require user to fill address before submit for delivery.
+
+---
+
+# 6. Cart interaction
+
+- Checkout assumes **non-empty mono-store cart**.
+- If cart empty on entry → redirect to cart or home with message.
+- Re-fetch cart when entering checkout.
+- User may leave to cart, edit, return to checkout — **re-load** cart and re-run any quote/validate.
+
+---
+
+# 7. Acceptance criteria (frontend)
+
+- [ ] One checkout screen with delivery, payment, contacts, summary
+- [ ] Prefill delivery mode, payment method, address/geo, email, phone from profile
+- [ ] User can change delivery address and modes
+- [ ] Back to cart works; edits reflected when returning
+- [ ] Confirm calls checkout API; on success goes to Order screen with order id
+- [ ] No real payment provider; success path is automatic per backend
+- [ ] End-of-slice **endpoint needs report** for backend agent
+
+---
+
+# 8. Test users (local)
+
+Use only in local/dev; never commit secrets to public repos if policy forbids.
+
+| Role | Username (email) | Password |
+|------|------------------|----------|
+| Admin | `dercio.anselmo@yahoo.com` | `EmitaSpencer13` |
+| Merchant (store admin) | `dercio.anselmo@zohomail.com` | `EmitaSpencer13` |
+| Merchant staff (`STORE_STAFF` / Funcionário) | `dercio.miguel@zohomail.com` | `Emit@Spencer13` |
+| Customer | `dercio.miguel@gmail.com` | `EmitaSpencer13` |
+
+Checkout is exercised primarily as **Customer**.
+
+---
+
+# 9. When in doubt
+
+- Checkout ≠ Cart; one store already enforced by cart.
+- Payment integration is stubbed; UI still collects method for the order record.
+- Always report backend endpoint needs after each slice.
+
 <!-- END:nextjs-agent-rules -->

@@ -1,8 +1,5 @@
-// Types for the proposed KONECTA Cart microservice — see
-// API_REFERENCE_MERCHANT_DASHBOARD.md's "Cart" section for the full
-// contract. The service doesn't exist yet; `app/api/cart/**` mocks it
-// behind the same contract so this type layer won't need to change once
-// the real service ships.
+// Types for the KONECTA Cart microservice — see
+// API_REFERENCE-cart-service-response-frontend.md for the live contract.
 
 export interface CartItem {
   id: string;

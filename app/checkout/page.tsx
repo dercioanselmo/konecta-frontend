@@ -1,21 +1,24 @@
 import { redirect } from "next/navigation";
-import { CustomerHeader } from "@/components/customer/CustomerHeader";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
+import { authApiFetch } from "@/lib/auth/authApi";
+import type { UserPreferences } from "@/lib/auth/types";
+import { CheckoutView } from "./CheckoutView";
 
 export default async function CheckoutPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/checkout");
 
-  return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <CustomerHeader user={user} backHref="/cart" backLabel="← Carrinho" />
+  let preferences: UserPreferences = { deliveryPreference: null, paymentMethod: null };
+  const accessToken = await getValidAccessToken();
+  if (accessToken) {
+    try {
+      preferences = await authApiFetch<UserPreferences>("/api/v1/users/me/preferences", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch {
+      // Fall back to the empty shape — the screen still works, just starts unset.
+    }
+  }
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <h1 className="text-xl font-bold text-foreground">Finalização de compra</h1>
-        <p className="max-w-xs text-sm text-muted">
-          O checkout (endereço, entrega e pagamento) chega numa próxima fase. O seu carrinho está guardado.
-        </p>
-      </main>
-    </div>
-  );
+  return <CheckoutView user={user} preferences={preferences} />;
 }

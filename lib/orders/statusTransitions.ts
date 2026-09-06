@@ -10,12 +10,13 @@ interface StatusAction {
 }
 
 /**
- * Merchant/staff-facing next-step actions per current status — an
- * interim, client-side hint for which buttons to show, NOT the
- * authoritative state machine. The real transition rules must be
- * enforced server-side regardless of what this renders (never trust a
- * client-side gate for a money/fulfillment-adjacent state change) — see
- * API_REFERENCE_MERCHANT_ORDERS.md's proposed `PATCH .../status`.
+ * Merchant/staff-facing next-step actions per current status — this is
+ * a client-side hint for which buttons to show, confirmed to match
+ * KONECTA-ORDERS-SERVICE's own authoritative table exactly (see
+ * API_REFERENCE_konecta_order.md's `PATCH .../status`) but still not the
+ * source of truth: the server validates every transition independently
+ * and rejects anything else with `409 INVALID_TRANSITION` regardless of
+ * what this config renders — confirmed live.
  */
 export const MERCHANT_STATUS_ACTIONS: Partial<Record<OrderStatus, StatusAction[]>> = {
   PAID: [

@@ -1,13 +1,59 @@
-# Merchant/staff order management — PROPOSED API contract
+# Merchant/staff order management — RESOLVED
 
-**Status: PROPOSED. None of this exists on any backend service yet.**
-This is the mandatory end-of-slice backend report for the new merchant
-Orders tab (per user request: "the orders tab... is the main tab inside
-the store dashboard"). The UI is fully built against this contract and
-degrades to a clean error state — confirmed live: hitting the (currently
-unmapped) proposed path against the real `KONECTA-ORDERS-SERVICE`
-returns a structured `500 INTERNAL_ERROR` body rather than a crash or
-raw stack trace, and the frontend renders that as a normal error banner.
+**Status: RESOLVED.** Backend implemented this on `KONECTA-ORDERS-SERVICE`
+itself (not a separate service) — see `API_REFERENCE_konecta_order.md`'s
+"Merchant order management" section for the authoritative version. Paths,
+request/response shapes, and — notably — the **exact transition table**
+proposed below were all adopted as proposed; no frontend code changes
+were needed beyond wording (see "Confirmed deltas").
+
+**Confirmed deltas / clarifications from backend's doc:**
+
+- **`search` matches customer *contact* (email/phone), not name.**
+  `customerName` is resolved live from Security per-request, not stored
+  on the order row, so it can't participate in the same DB-level search
+  query as the other fields. Fixed the search box's placeholder text
+  (`MerchantOrdersList.tsx`) from implying name-search to correctly
+  saying "Contacto do cliente, produto ou nº da encomenda."
+- **Role set is `MERCHANT`, `MERCHANT_STAFF`, or `ADMIN`** — matches
+  what was already built (Admin reuses the same views via
+  `basePath="/admin/shops"`).
+- **Ownership check for `MERCHANT`** is a live call to
+  Stores-and-Stock's own `GET /api/v1/merchant/shops/{shopId}` with the
+  caller's forwarded token — an implementation detail, no frontend impact.
+- **`order_status_history`** is a new table this service owns outright,
+  recording every transition (`from_status, to_status, actor_user_id,
+  created_at`) — not currently surfaced anywhere in the UI; flagging as
+  a nice-to-have for a future "histórico de estados" detail section, not
+  requesting anything now.
+- Two services can now write to the same `orders` row (Checkout on
+  creation, Orders on merchant status changes) — backend flagged this
+  explicitly as a currently-safe-but-unguarded (no optimistic locking)
+  arrangement. Nothing for the frontend to do about this; noted for
+  awareness.
+
+## Live verification performed
+
+Logged in as the real merchant account through the actual running app:
+
+- `GET /api/merchant/shops/{shopId}/orders?tab=ACTIVE` → real orders
+  with **real resolved customer names** ("Dercio 2 Anselmo3"), not
+  emails or placeholders.
+- `GET /api/merchant/shops/{shopId}/orders/{orderId}` → full detail,
+  matches the documented shape exactly.
+- `PATCH .../status` with `{"status":"STORE_CONFIRMED"}` on a real
+  `PENDING_STORE_OPEN` test order → `200`, status updated.
+- **Cross-service consistency confirmed**: immediately after that PATCH,
+  fetched the same order through the **customer-facing**
+  `GET /api/orders/{orderId}` (different route, different auth scope,
+  logged in as the actual customer) — returned `STORE_CONFIRMED`,
+  confirming both endpoints really do read the same row live, not a
+  cached or eventually-consistent copy.
+- **Server-side enforcement confirmed**: attempted the invalid jump
+  `STORE_CONFIRMED → DELIVERED` → correctly rejected with
+  `409 INVALID_TRANSITION`, proving the backend validates independently
+  of whatever the frontend's own `statusTransitions.ts` config renders.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean after the wording fix.
 
 ---
 

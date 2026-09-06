@@ -82,7 +82,7 @@ export function MerchantOrdersList({
         <div className="sm:col-span-1">
           <Input
             label="Pesquisar"
-            placeholder="Cliente, contacto, produto ou nº da encomenda"
+            placeholder="Contacto do cliente, produto ou nº da encomenda"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

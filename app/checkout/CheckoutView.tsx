@@ -12,6 +12,7 @@ import { useCart } from "@/lib/cart/useCart";
 import { saveCheckoutDraft } from "@/lib/cart/client";
 import { placeOrder, CheckoutApiError } from "@/lib/checkout/client";
 import { fetchNeighborhoods } from "@/lib/auth/client";
+import { getPublicStoreStatus } from "@/lib/stores/publicClient";
 import type { UserPreferences, UserProfile } from "@/lib/auth/types";
 import type { DeliveryMode } from "@/lib/checkout/types";
 import type { Neighborhood } from "@/lib/auth/types";
@@ -41,6 +42,7 @@ function deliveryModeFromPreference(pref: UserPreferences["deliveryPreference"])
 export function CheckoutView({ user, preferences, storeId }: { user: UserProfile; preferences: UserPreferences; storeId: string }) {
   const router = useRouter();
   const { cart, isLoading: cartLoading, refresh: refreshCart } = useCart(storeId);
+  const [storeIsOpen, setStoreIsOpen] = useState(false);
 
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
     deliveryModeFromPreference(preferences.deliveryPreference),
@@ -76,6 +78,26 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const refreshStoreStatus = async () => {
+      try {
+        const status = await getPublicStoreStatus(storeId);
+        if (active) setStoreIsOpen(status.isOpen);
+      } catch {
+        if (active) setStoreIsOpen(cart.isStoreOpen);
+      }
+    };
+    void refreshStoreStatus();
+    const interval = window.setInterval(refreshStoreStatus, 60_000);
+    window.addEventListener("focus", refreshStoreStatus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshStoreStatus);
+    };
+  }, [cart.isStoreOpen, storeId]);
+
+  useEffect(() => {
     if (!cartLoading && cart.items.length === 0) {
       router.replace("/cart");
     }
@@ -98,12 +120,13 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const subtotalKnown = cart.subtotal != null;
-  const subtotal = cart.subtotal ?? 0;
+  const cartTotal = cart.subtotal ?? 0;
   // Catalog prices already include IVA, so show its component without adding it twice.
-  const ivaAmount = subtotal * (17 / 117);
-  const servicesFee = subtotal * 0.1;
+  const ivaAmount = cartTotal * (17 / 117);
+  const servicesFee = cartTotal * 0.1;
   const deliveryFee = deliveryMode === "DELIVERY" ? 20 : 0;
-  const total = subtotal + servicesFee + deliveryFee;
+  const subtotal = Math.max(0, cartTotal - servicesFee - deliveryFee);
+  const total = cartTotal;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,7 +155,7 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
         ? { address, city: "Maputo", neighborhood, latitude: position[0], longitude: position[1] }
         : null;
     try {
-      if (!cart.isStoreOpen) {
+      if (!storeIsOpen) {
         await saveCheckoutDraft(storeId, { deliveryMode, deliveryAddress, paymentMethod, contactEmail, contactPhone });
         await refreshCart();
         setDraftSaved(true);
@@ -155,6 +178,8 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
       setFormError(
         err instanceof CheckoutApiError && err.code === "STORE_CLOSED"
           ? "A loja fechou entretanto. Os seus dados foram guardados neste carrinho."
+          : err instanceof CheckoutApiError && err.code === "SERVICE_UNAVAILABLE"
+            ? "O serviço de checkout não conseguiu contactar o carrinho ou o stock. Tente novamente em alguns instantes."
           : err instanceof CheckoutApiError
             ? (err.details?.join(" ") ?? err.message)
           : "Não foi possível finalizar a compra. Tente novamente.",
@@ -181,9 +206,12 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
             <div>
               <p className="text-xs uppercase tracking-wide text-muted">Loja</p>
               <p className="text-lg font-semibold text-foreground">{cart.storeName}</p>
+              <p className={`text-xs font-medium ${storeIsOpen ? "text-brand-green" : "text-amber-600"}`}>
+                {storeIsOpen ? "Aberta agora" : "Fechada agora"}
+              </p>
             </div>
           </div>
-          {!cart.isStoreOpen ? <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">A loja está fechada. Pode preencher os dados agora; serão guardados neste carrinho e poderá concluir quando a loja abrir.</div> : null}
+          {!storeIsOpen ? <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">A loja está fechada. Pode preencher os dados agora; serão guardados neste carrinho e poderá concluir quando a loja abrir.</div> : null}
           {draftSaved ? <div className="rounded-xl border border-brand-green/40 bg-brand-green/10 p-3 text-sm text-brand-green">Dados guardados neste carrinho.</div> : null}
 
           {/* A. Entrega */}
@@ -299,12 +327,18 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
             </div>
 
             <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <div className="mb-1 grid grid-cols-[minmax(0,1fr)_3.5rem_6.5rem_6.5rem] items-center gap-2 text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                <span className="text-left">Artigo</span>
+                <span>Qtd.</span>
+                <span>Preço unit.</span>
+                <span>Total</span>
+              </div>
               {cart.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">
-                    {item.quantity}× {item.name}
-                  </span>
-                  <span className="text-muted">{item.lineTotal != null ? `${item.lineTotal.toFixed(2)} MT` : "—"}</span>
+                <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_3.5rem_6.5rem_6.5rem] items-center gap-2 text-right text-sm">
+                  <span className="truncate text-left text-foreground">{item.name}</span>
+                  <span className="text-muted">{item.quantity}</span>
+                  <span className="text-muted">{item.unitPrice != null ? `${item.unitPrice.toFixed(2)} MT` : "—"}</span>
+                  <span className="text-foreground">{item.lineTotal != null ? `${item.lineTotal.toFixed(2)} MT` : "—"}</span>
                 </div>
               ))}
             </div>
@@ -313,7 +347,7 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
               <div className="flex items-center justify-between">
                 <span className="text-muted">Subtotal</span>
                 <span className="font-medium text-foreground">
-                  {subtotalKnown ? `${cart.subtotal!.toFixed(2)} MT` : "—"}
+                  {subtotalKnown ? `${subtotal.toFixed(2)} MT` : "—"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -337,7 +371,7 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
             {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
 
             <Button type="submit" loading={submitting} className="w-full">
-              {cart.isStoreOpen ? "Confirmar e pagar" : "Guardar neste carrinho"}
+              {storeIsOpen ? "Confirmar e pagar" : "Guardar neste carrinho"}
             </Button>
           </section>
         </form>

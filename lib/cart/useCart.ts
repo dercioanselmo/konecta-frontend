@@ -48,7 +48,11 @@ export function useCart(storeId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Cart>(
     storeId ? ["cart", storeId] : null,
     ([, id]) => getCart(id as string),
-    { errorRetryCount: 3, revalidateOnFocus: false },
+    {
+      errorRetryCount: 3,
+      revalidateOnFocus: true,
+      refreshInterval: 60_000,
+    },
   );
   return { cart: data ?? EMPTY_CART(storeId ?? ""), isLoading, error, refresh: mutate };
 }

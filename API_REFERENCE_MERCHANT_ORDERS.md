@@ -262,3 +262,21 @@ close them properly:
 
 None of these block anything — the interim behavior is correct enough
 to ship, just not optimal at scale or in the one specific edge case (3).
+
+---
+
+## Follow-up ask (2026-09-07): a per-status timestamp
+
+Confirmed the urgency badge's timer needs to reset when an order enters
+a new status, not keep counting from `createdAt` — right now the
+frontend can only do this correctly for a status change made *in the
+current browser session* (tracked in local component state the moment
+`PATCH .../status` succeeds); reloading the page, or another staff
+member's change, falls back to `createdAt` and can show a misleadingly
+"urgent" color immediately after a status that's actually brand new.
+
+The doc already mentions `order_status_history` records
+`created_at` per transition — exposing the **latest** entry's timestamp
+as e.g. `statusUpdatedAt` on both `GET .../orders/{orderId}` and each
+row of `GET .../orders` (list) would let the frontend compute this
+correctly everywhere, not just in the one session that made the change.

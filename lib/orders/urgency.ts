@@ -33,8 +33,8 @@ export function urgencyApplies(status: OrderStatus, deliveryMode?: DeliveryMode)
   return deliveryMode == null || modes.includes(deliveryMode);
 }
 
-export function urgencyTier(createdAt: string, now: number): UrgencyTier {
-  const elapsedMinutes = (now - new Date(createdAt).getTime()) / 60_000;
+export function urgencyTier(since: string, now: number): UrgencyTier {
+  const elapsedMinutes = (now - new Date(since).getTime()) / 60_000;
   if (elapsedMinutes >= 10) return "yellow";
   if (elapsedMinutes >= 5) return "orange";
   return "neutral";

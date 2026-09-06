@@ -43,6 +43,12 @@ export function MerchantOrderDetailView({
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  // The backend doesn't expose a per-status timestamp yet (only
+  // `createdAt`) — tracked locally so the urgency badge resets to
+  // neutral the moment *this session* changes the status, instead of
+  // staying at whatever tier the previous status had already reached.
+  // Falls back to `createdAt` for a status this session didn't just set.
+  const [statusSince, setStatusSince] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -60,12 +66,16 @@ export function MerchantOrderDetailView({
     queueMicrotask(() => { load(); });
   }, [load]);
 
-  const changeStatus = async (status: MerchantOrder["status"]) => {
+  const changeStatus = async (status: MerchantOrder["status"], destructive?: boolean) => {
+    if (destructive && !window.confirm("Tem a certeza que quer cancelar esta encomenda? Esta ação não pode ser revertida.")) {
+      return;
+    }
     setActionError(null);
     setUpdating(status);
     try {
       const updated = await updateOrderStatus(shopId, orderId, status);
       setOrder(updated);
+      setStatusSince(new Date().toISOString());
     } catch (err) {
       setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atualizar o estado da encomenda.");
     } finally {
@@ -93,14 +103,18 @@ export function MerchantOrderDetailView({
                 {new Date(order.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
               </p>
               <div className="mt-2">
-                <OrderStatusBadge status={order.status} createdAt={order.createdAt} deliveryMode={order.deliveryMode} />
+                <OrderStatusBadge status={order.status} since={statusSince ?? order.createdAt} deliveryMode={order.deliveryMode} />
               </div>
             </div>
             <Link
               href={`${basePath}/${shopId}/orders/${orderId}/receipt`}
-              className="flex h-9 shrink-0 items-center justify-center rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
+              className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
             >
-              Descarregar recibo
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2L6 20V3Z" />
+                <path strokeLinecap="round" d="M9 8h6M9 12h6" />
+              </svg>
+              Recibo
             </Link>
           </div>
 
@@ -127,7 +141,7 @@ export function MerchantOrderDetailView({
                     className={`h-10 w-auto px-4 text-sm ${action.destructive ? "text-red-600" : ""}`}
                     loading={updating === action.status}
                     disabled={updating != null}
-                    onClick={() => changeStatus(action.status)}
+                    onClick={() => changeStatus(action.status, action.destructive)}
                   >
                     {action.label}
                   </Button>

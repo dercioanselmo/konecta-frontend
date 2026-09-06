@@ -45,9 +45,13 @@ export function OrderDetailView({ orderId, initialOrder }: { orderId: string; in
         </div>
         <Link
           href={`/orders/${orderId}/receipt`}
-          className="flex h-9 shrink-0 items-center justify-center rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
+          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
         >
-          Descarregar recibo
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2L6 20V3Z" />
+            <path strokeLinecap="round" d="M9 8h6M9 12h6" />
+          </svg>
+          Recibo
         </Link>
       </div>
 

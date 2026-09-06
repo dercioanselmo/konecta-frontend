@@ -148,7 +148,7 @@ export function MerchantOrdersList({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <p className="font-semibold text-foreground">{order.total.toFixed(2)} MT</p>
-                <OrderStatusBadge status={order.status} createdAt={order.createdAt} />
+                <OrderStatusBadge status={order.status} since={order.createdAt} />
               </div>
             </Link>
           ))}

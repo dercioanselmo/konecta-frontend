@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAddToCart } from "@/lib/cart/useAddToCart";
-import { CartConflictModal } from "@/components/customer/CartConflictModal";
 
 export function ProductDetailActions({
   productId,
@@ -20,7 +19,7 @@ export function ProductDetailActions({
   loginNext: string;
 }) {
   const router = useRouter();
-  const { attemptAdd, replaceCart, cancelConflict, pendingId, error, conflict } = useAddToCart(shopId);
+  const { attemptAdd, pendingId, error } = useAddToCart(shopId);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
@@ -31,12 +30,6 @@ export function ProductDetailActions({
     }
     setAdded(false);
     const ok = await attemptAdd(productId, quantity);
-    if (ok) setAdded(true);
-  };
-
-  const handleReplace = async () => {
-    setAdded(false);
-    const ok = await replaceCart();
     if (ok) setAdded(true);
   };
 
@@ -74,9 +67,6 @@ export function ProductDetailActions({
         {inStock ? "Adicionar ao carrinho" : "Esgotado"}
       </Button>
 
-      {conflict ? (
-        <CartConflictModal conflict={conflict} onReplace={handleReplace} onCancel={cancelConflict} />
-      ) : null}
     </div>
   );
 }

@@ -15,18 +15,46 @@ export interface CartItem {
 }
 
 export interface Cart {
-  storeId: string | null;
-  storeName: string | null;
+  storeId: string;
+  storeName: string;
   storeLogoUrl: string | null;
+  isStoreOpen: boolean;
   items: CartItem[];
   itemCount: number;
   subtotal: number | null;
   /** false if empty, or any line is inactive/out of stock, or a price is unknown. */
   valid: boolean;
+  hasCheckoutDraft: boolean;
+  checkoutDraft: CheckoutDraft | null;
+}
+
+export interface CartSummary {
+  storeId: string;
+  storeName: string;
+  storeLogoUrl: string | null;
+  isStoreOpen: boolean;
+  itemCount: number;
+  subtotal: number | null;
+  valid: boolean;
+  hasCheckoutDraft: boolean;
+}
+
+export interface CheckoutDraft {
+  deliveryMode: "PICKUP" | "DELIVERY";
+  deliveryAddress: {
+    address: string;
+    city: string;
+    neighborhood: string;
+    latitude: number;
+    longitude: number;
+  } | null;
+  paymentMethod: "CARD" | "MPESA" | "EMOLA" | "CASH";
+  contactEmail: string;
+  contactPhone: string;
+  savedAt: string;
 }
 
 export type CartErrorCode =
-  | "STORE_MISMATCH"
   | "PRODUCT_INACTIVE"
   | "INSUFFICIENT_STOCK"
   | "PRODUCT_NOT_FOUND"
@@ -39,7 +67,7 @@ export interface CartErrorBody {
   code: CartErrorCode | string;
   message: string;
   details?: string[];
-  /** Only on STORE_MISMATCH — lets the UI show the conflict without a second call. */
+  /** Preserved for compatibility with older Cart service responses. */
   currentStoreId?: string;
   currentStoreName?: string;
 }

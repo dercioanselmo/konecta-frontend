@@ -23,6 +23,7 @@ export interface DeliveryAddress {
 }
 
 export interface CheckoutRequest {
+  storeId: string;
   deliveryMode: DeliveryMode;
   deliveryAddress: DeliveryAddress | null;
   paymentMethod: PaymentMethod;
@@ -85,6 +86,7 @@ export type CheckoutErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
   | "SERVICE_UNAVAILABLE"
+  | "STORE_CLOSED"
   | "UNKNOWN_ERROR";
 
 export interface CheckoutErrorBody {

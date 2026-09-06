@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAddToCart } from "@/lib/cart/useAddToCart";
-import { CartConflictModal } from "./CartConflictModal";
 import type { PublicProduct } from "@/lib/stores/types";
 
 interface ProductGridProps {
@@ -17,7 +16,7 @@ interface ProductGridProps {
 
 export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: ProductGridProps) {
   const router = useRouter();
-  const { attemptAdd, replaceCart, cancelConflict, pendingId, error, conflict } = useAddToCart(shopId);
+  const { attemptAdd, pendingId, error } = useAddToCart(shopId);
   const [addedId, setAddedId] = useState<string | null>(null);
 
   const handleAdd = async (e: React.MouseEvent, productId: string) => {
@@ -29,15 +28,6 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
     }
     const ok = await attemptAdd(productId, 1);
     if (ok) {
-      setAddedId(productId);
-      setTimeout(() => setAddedId((id) => (id === productId ? null : id)), 1500);
-    }
-  };
-
-  const handleReplace = async () => {
-    const productId = conflict?.productId;
-    const ok = await replaceCart();
-    if (ok && productId) {
       setAddedId(productId);
       setTimeout(() => setAddedId((id) => (id === productId ? null : id)), 1500);
     }
@@ -87,9 +77,6 @@ export function ProductGrid({ products, shopId, isLoggedIn, loginNext }: Product
         </div>
       )}
 
-      {conflict ? (
-        <CartConflictModal conflict={conflict} onReplace={handleReplace} onCancel={cancelConflict} />
-      ) : null}
     </>
   );
 }

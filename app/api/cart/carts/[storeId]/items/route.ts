@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireAccessToken } from "@/lib/auth/bffAuth";
 import { cartApiFetch, cartApiErrorResponse } from "@/lib/cart/cartApi";
-import type { Cart } from "@/lib/cart/types";
 
-export async function POST(request: Request) {
+export async function POST(request: Request, ctx: RouteContext<"/api/cart/carts/[storeId]/items">) {
   const accessToken = await requireAccessToken();
   if (accessToken instanceof NextResponse) return accessToken;
+  const { storeId } = await ctx.params;
 
-  const body = await request.json();
   try {
-    const cart = await cartApiFetch<Cart>("/api/v1/cart/items", {
+    const cart = await cartApiFetch(`/api/v1/carts/${storeId}/items`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify(await request.json()),
     });
     return NextResponse.json(cart, { status: 201 });
   } catch (error) {

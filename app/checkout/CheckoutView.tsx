@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCart } from "@/lib/cart/useCart";
+import { saveCheckoutDraft } from "@/lib/cart/client";
 import { placeOrder, CheckoutApiError } from "@/lib/checkout/client";
 import { fetchNeighborhoods } from "@/lib/auth/client";
 import type { UserPreferences, UserProfile } from "@/lib/auth/types";
@@ -37,9 +38,9 @@ function deliveryModeFromPreference(pref: UserPreferences["deliveryPreference"])
   return pref === "PICKUP" ? "PICKUP" : "DELIVERY";
 }
 
-export function CheckoutView({ user, preferences }: { user: UserProfile; preferences: UserPreferences }) {
+export function CheckoutView({ user, preferences, storeId }: { user: UserProfile; preferences: UserPreferences; storeId: string }) {
   const router = useRouter();
-  const { cart, isLoading: cartLoading } = useCart();
+  const { cart, isLoading: cartLoading, refresh: refreshCart } = useCart(storeId);
 
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
     deliveryModeFromPreference(preferences.deliveryPreference),
@@ -57,10 +58,14 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
   const [contactPhone, setContactPhone] = useState(user.phone ?? "");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
   // Generated once per checkout attempt; resent unchanged if the same
   // submit is retried, so a network hiccup can't create a duplicate order.
   const idempotencyKey = useRef(crypto.randomUUID());
 
+  // The fetched draft is the server-owned source of truth when resuming checkout.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchNeighborhoods("Maputo").then(setNeighborhoods);
   }, []);
@@ -70,6 +75,22 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
       router.replace("/cart");
     }
   }, [cartLoading, cart.items.length, router]);
+
+  useEffect(() => {
+    if (cartLoading || draftLoaded || !cart) return;
+    if (cart.checkoutDraft) {
+      const draft = cart.checkoutDraft;
+      setDeliveryMode(draft.deliveryMode);
+      setAddress(draft.deliveryAddress?.address ?? "");
+      setNeighborhood(draft.deliveryAddress?.neighborhood ?? "");
+      if (draft.deliveryAddress) setPosition([draft.deliveryAddress.latitude, draft.deliveryAddress.longitude]);
+      setPaymentMethod(draft.paymentMethod);
+      setContactEmail(draft.contactEmail);
+      setContactPhone(draft.contactPhone);
+    }
+    setDraftLoaded(true);
+  }, [cart, cartLoading, draftLoaded]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const subtotalKnown = cart.subtotal != null;
 
@@ -87,14 +108,23 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
     }
 
     setSubmitting(true);
+    const deliveryAddress =
+      deliveryMode === "DELIVERY"
+        ? { address, city: "Maputo", neighborhood, latitude: position[0], longitude: position[1] }
+        : null;
     try {
+      if (!cart.isStoreOpen) {
+        await saveCheckoutDraft(storeId, { deliveryMode, deliveryAddress, paymentMethod, contactEmail, contactPhone });
+        await refreshCart();
+        setDraftSaved(true);
+        setSubmitting(false);
+        return;
+      }
       const order = await placeOrder(
         {
+          storeId,
           deliveryMode,
-          deliveryAddress:
-            deliveryMode === "DELIVERY"
-              ? { address, city: "Maputo", neighborhood, latitude: position[0], longitude: position[1] }
-              : null,
+          deliveryAddress,
           paymentMethod,
           contactEmail,
           contactPhone,
@@ -104,8 +134,10 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
       router.push(`/orders/${order.orderId}`);
     } catch (err) {
       setFormError(
-        err instanceof CheckoutApiError
-          ? (err.details?.join(" ") ?? err.message)
+        err instanceof CheckoutApiError && err.code === "STORE_CLOSED"
+          ? "A loja fechou entretanto. Os seus dados foram guardados neste carrinho."
+          : err instanceof CheckoutApiError
+            ? (err.details?.join(" ") ?? err.message)
           : "Não foi possível finalizar a compra. Tente novamente.",
       );
       setSubmitting(false);
@@ -114,13 +146,16 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <CustomerHeader user={user} backHref="/cart" backLabel="← Carrinho" />
+      <CustomerHeader user={user} backHref={`/cart?storeId=${storeId}`} backLabel="← Carrinho" />
       <h1 className="mt-4 text-2xl font-bold text-foreground">Finalizar compra</h1>
 
       {cartLoading || cart.items.length === 0 ? (
         <p className="mt-6 text-sm text-muted">A carregar…</p>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-8">
+          {!cart.isStoreOpen ? <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">A loja está fechada. Pode preencher os dados agora; serão guardados neste carrinho e poderá concluir quando a loja abrir.</div> : null}
+          {draftSaved ? <div className="rounded-xl border border-brand-green/40 bg-brand-green/10 p-3 text-sm text-brand-green">Dados guardados neste carrinho.</div> : null}
+
           {/* A. Entrega */}
           <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
             <h2 className="text-lg font-semibold text-foreground">Entrega</h2>
@@ -243,7 +278,7 @@ export function CheckoutView({ user, preferences }: { user: UserProfile; prefere
             {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
 
             <Button type="submit" loading={submitting} className="w-full">
-              Confirmar e pagar
+              {cart.isStoreOpen ? "Confirmar e pagar" : "Guardar neste carrinho"}
             </Button>
           </section>
         </form>

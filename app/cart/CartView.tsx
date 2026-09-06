@@ -4,41 +4,33 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
-import { useCart } from "@/lib/cart/useCart";
+import { useCart, useCarts } from "@/lib/cart/useCart";
 import { updateCartItemQuantity, removeCartItem, CartApiError } from "@/lib/cart/client";
 import type { CartItem } from "@/lib/cart/types";
 import type { UserProfile } from "@/lib/auth/types";
 
 export function CartView({ user }: { user: UserProfile }) {
-  const { cart, isLoading, refresh } = useCart();
+  const { carts, isLoading: cartsLoading, refresh: refreshCarts } = useCarts();
+  const [selectedStoreId, setSelectedStoreId] = useState<string>();
+  const activeStoreId = selectedStoreId ?? carts[0]?.storeId;
+  const selectedSummary = carts.find((entry) => entry.storeId === activeStoreId) ?? carts[0];
+  const { cart, isLoading, refresh } = useCart(selectedSummary?.storeId);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const changeQuantity = async (item: CartItem, quantity: number) => {
+    if (!cart) return;
     setError(null);
     setBusyId(item.id);
     try {
       if (quantity <= 0) {
-        await removeCartItem(item.id);
+        await removeCartItem(cart.storeId, item.id);
       } else {
-        await updateCartItemQuantity(item.id, quantity);
+        await updateCartItemQuantity(cart.storeId, item.id, quantity);
       }
-      await refresh();
+      await Promise.all([refresh(), refreshCarts()]);
     } catch (err) {
       setError(err instanceof CartApiError ? err.message : "Não foi possível atualizar o carrinho.");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const removeItem = async (item: CartItem) => {
-    setError(null);
-    setBusyId(item.id);
-    try {
-      await removeCartItem(item.id);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof CartApiError ? err.message : "Não foi possível remover o produto.");
     } finally {
       setBusyId(null);
     }
@@ -47,13 +39,13 @@ export function CartView({ user }: { user: UserProfile }) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col px-4 py-6 sm:px-6">
       <CustomerHeader user={user} backHref="/home" backLabel="← Continuar a comprar" />
-      <h1 className="mt-4 text-2xl font-bold text-foreground">Carrinho</h1>
+      <h1 className="mt-4 text-2xl font-bold text-foreground">Carrinhos</h1>
 
-      {isLoading ? (
+      {cartsLoading ? (
         <p className="mt-6 text-sm text-muted">A carregar…</p>
-      ) : cart.items.length === 0 ? (
+      ) : carts.length === 0 ? (
         <div className="mt-10 flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-base font-semibold text-foreground">O seu carrinho está vazio</p>
+          <p className="text-base font-semibold text-foreground">Os seus carrinhos estão vazios</p>
           <p className="max-w-xs text-sm text-muted">
             Explore as categorias e adicione produtos de uma loja para começar.
           </p>
@@ -66,13 +58,22 @@ export function CartView({ user }: { user: UserProfile }) {
         </div>
       ) : (
         <>
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {carts.map((summary) => (
+              <button key={summary.storeId} type="button" onClick={() => setSelectedStoreId(summary.storeId)} className={`min-w-44 rounded-xl border p-3 text-left ${summary.storeId === cart?.storeId ? "border-brand-green bg-brand-green/10" : "border-border bg-surface"}`}>
+                <p className="truncate text-sm font-semibold text-foreground">{summary.storeName}</p>
+                <p className="mt-1 text-xs text-muted">{summary.itemCount} artigo(s) · {summary.isStoreOpen ? "Aberta" : "Fechada"}</p>
+              </button>
+            ))}
+          </div>
+          {isLoading || !cart ? <p className="mt-6 text-sm text-muted">A carregar…</p> : cart.items.length === 0 ? <p className="mt-6 text-sm text-muted">Este carrinho está vazio.</p> : <>
           <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-surface p-4">
             {cart.storeLogoUrl ? (
               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-background">
                 <Image src={cart.storeLogoUrl} alt="" fill sizes="40px" className="object-cover" unoptimized />
               </div>
             ) : null}
-            <p className="font-semibold text-foreground">{cart.storeName ?? "Loja"}</p>
+            <div><p className="font-semibold text-foreground">{cart.storeName}</p><p className="text-xs text-muted">{cart.isStoreOpen ? "Loja aberta" : "Loja fechada"}</p></div>
           </div>
 
           {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
@@ -122,7 +123,7 @@ export function CartView({ user }: { user: UserProfile }) {
                       <button
                         type="button"
                         disabled={busyId === item.id}
-                        onClick={() => removeItem(item)}
+                        onClick={() => changeQuantity(item, 0)}
                         aria-label="Remover produto"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-red-500 disabled:opacity-60"
                       >
@@ -148,7 +149,7 @@ export function CartView({ user }: { user: UserProfile }) {
           </div>
 
           <Link
-            href={cart.valid ? "/checkout" : "#"}
+            href={cart.valid ? `/checkout?storeId=${cart.storeId}` : "#"}
             aria-disabled={!cart.valid}
             className={`mt-4 flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
               cart.valid
@@ -159,10 +160,8 @@ export function CartView({ user }: { user: UserProfile }) {
             Ir para checkout
           </Link>
           {!cart.valid ? (
-            <p className="mt-2 text-center text-xs text-muted">
-              Resolva os produtos assinalados acima para continuar.
-            </p>
-          ) : null}
+            <p className="mt-2 text-center text-xs text-muted">Resolva os produtos assinalados acima para continuar.</p>
+          ) : null}</>}
         </>
       )}
     </div>

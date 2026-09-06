@@ -11,7 +11,7 @@ interface CartServiceErrorBody {
   code: string;
   message: string;
   details?: string[];
-  /** Only present on 409 STORE_MISMATCH. */
+  /** Preserved for compatibility with older Cart service responses. */
   currentStoreId?: string;
   currentStoreName?: string;
 }
@@ -60,7 +60,7 @@ export async function cartApiFetch<T>(path: string, init: RequestInit = {}): Pro
   return body as T;
 }
 
-/** Converts a caught CartServiceError into a NextResponse, preserving the STORE_MISMATCH extras. */
+/** Converts a caught CartServiceError into a consistent BFF response. */
 export function cartApiErrorResponse(error: unknown): NextResponse {
   if (error instanceof CartServiceError) {
     return NextResponse.json(

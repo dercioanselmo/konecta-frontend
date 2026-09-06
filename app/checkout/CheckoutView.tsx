@@ -56,6 +56,11 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   );
   const [contactEmail, setContactEmail] = useState(user.email ?? "");
   const [contactPhone, setContactPhone] = useState(user.phone ?? "");
+  const [paymentMobileNumber, setPaymentMobileNumber] = useState(user.phone ?? "");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -93,6 +98,12 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const subtotalKnown = cart.subtotal != null;
+  const subtotal = cart.subtotal ?? 0;
+  // Catalog prices already include IVA, so show its component without adding it twice.
+  const ivaAmount = subtotal * (17 / 117);
+  const servicesFee = subtotal * 0.1;
+  const deliveryFee = deliveryMode === "DELIVERY" ? 20 : 0;
+  const total = subtotal + servicesFee + deliveryFee;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +115,14 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
     }
     if (!contactEmail.trim() || !contactPhone.trim()) {
       setFormError("Indique um email e telefone de contacto.");
+      return;
+    }
+    if ((paymentMethod === "MPESA" || paymentMethod === "EMOLA") && !paymentMobileNumber.trim()) {
+      setFormError("Indique o número de telemóvel para o pagamento.");
+      return;
+    }
+    if (paymentMethod === "CARD" && (!cardNumber.trim() || !cardHolder.trim() || !cardExpiry.trim() || !cardCvv.trim())) {
+      setFormError("Preencha todos os dados do cartão.");
       return;
     }
 
@@ -153,6 +172,17 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
         <p className="mt-6 text-sm text-muted">A carregar…</p>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-8">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+            {cart.storeLogoUrl ? (
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-background">
+                <Image src={cart.storeLogoUrl} alt="" fill sizes="48px" className="object-cover" unoptimized />
+              </div>
+            ) : null}
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted">Loja</p>
+              <p className="text-lg font-semibold text-foreground">{cart.storeName}</p>
+            </div>
+          </div>
           {!cart.isStoreOpen ? <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">A loja está fechada. Pode preencher os dados agora; serão guardados neste carrinho e poderá concluir quando a loja abrir.</div> : null}
           {draftSaved ? <div className="rounded-xl border border-brand-green/40 bg-brand-green/10 p-3 text-sm text-brand-green">Dados guardados neste carrinho.</div> : null}
 
@@ -231,6 +261,23 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
             {paymentMethod === "CASH" ? (
               <p className="text-xs text-muted">Pagamento na entrega ou levantamento.</p>
             ) : null}
+            {paymentMethod === "CARD" ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input label="Número do cartão" inputMode="numeric" autoComplete="cc-number" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} />
+                <Input label="Nome no cartão" autoComplete="cc-name" value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} />
+                <Input label="Validade" placeholder="MM/AA" autoComplete="cc-exp" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} />
+                <Input label="CVV" type="password" inputMode="numeric" autoComplete="cc-csc" value={cardCvv} onChange={(e) => setCardCvv(e.target.value)} />
+              </div>
+            ) : null}
+            {paymentMethod === "MPESA" || paymentMethod === "EMOLA" ? (
+              <Input
+                label="Número de telemóvel para pagamento"
+                type="tel"
+                inputMode="tel"
+                value={paymentMobileNumber}
+                onChange={(e) => setPaymentMobileNumber(e.target.value)}
+              />
+            ) : null}
           </section>
 
           {/* C. Contactos e resumo */}
@@ -270,8 +317,20 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
                 </span>
               </div>
               <div className="flex items-center justify-between">
+                <span className="text-muted">IVA (17%, incluído)</span>
+                <span className="text-foreground">{subtotalKnown ? `${ivaAmount.toFixed(2)} MT` : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Taxa de serviço (10%)</span>
+                <span className="text-foreground">{subtotalKnown ? `${servicesFee.toFixed(2)} MT` : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-muted">Taxa de entrega</span>
-                <span className="text-muted">Calculada na confirmação</span>
+                <span className="text-foreground">{deliveryMode === "DELIVERY" ? "20.00 MT" : "0.00 MT"}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between border-t border-border pt-3 text-base">
+                <span className="font-semibold text-foreground">Total</span>
+                <span className="text-lg font-bold text-foreground">{subtotalKnown ? `${total.toFixed(2)} MT` : "—"}</span>
               </div>
             </div>
 

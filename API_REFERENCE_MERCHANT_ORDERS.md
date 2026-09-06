@@ -223,3 +223,42 @@ correctly surfaces the service's own structured error response (a
 page) as a normal in-UI error banner.
 
 `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+---
+
+## Follow-up asks (2026-09-07): dashboard counts, status filter, deliveryMode on list rows
+
+Three real gaps surfaced while building the merchant dashboard's new
+order-status summary boxes and the list's new status filter — all
+worked around client-side for now, listed here in case backend wants to
+close them properly:
+
+1. **No dedicated counts endpoint.** The dashboard's three new boxes
+   ("Recebidas (por aceitar)" / "Aceites (em preparação)" / "Prontas /
+   em entrega") are computed by fetching up to 200 active orders and
+   bucketing by status client-side — correct today, but silently caps
+   out at 200 orders and does one extra full-list fetch just to get
+   three numbers. A `GET /api/v1/merchant/shops/{shopId}/orders/counts`
+   (or similar) returning `{ notYetAccepted, acceptedInPrep,
+   readyOrEnRoute }` — or even just per-status counts generically —
+   would be both more correct at scale and cheaper.
+2. **No `status` filter on the list endpoint.** The new "Estado" filter
+   on the merchant orders list currently over-fetches (`size=100` when a
+   status is selected) and filters client-side — correct for a shop with
+   a modest order volume, silently incomplete beyond that. A `status`
+   query param on `GET /api/v1/merchant/shops/{shopId}/orders` (single
+   exact-match value) would remove the need for this workaround entirely.
+3. **`deliveryMode` isn't on `MerchantOrderSummary`.** The list's
+   status badges escalate color (white → orange → yellow, every 5 min)
+   for orders sitting in a merchant-actionable status without moving —
+   but `READY_FOR_PICKUP` should only escalate for **delivery** orders
+   (a pickup order waiting there is waiting on the customer, not the
+   merchant), and the list row has no way to know which. Today it
+   over-includes (treats every `READY_FOR_PICKUP` row as urgent) rather
+   than risk under-including a delivery order that actually needs a
+   courier assigned. Adding `deliveryMode` to `MerchantOrderSummary`
+   would let the list get this exactly right, matching what the detail
+   endpoint already provides.
+
+None of these block anything — the interim behavior is correct enough
+to ship, just not optimal at scale or in the one specific edge case (3).

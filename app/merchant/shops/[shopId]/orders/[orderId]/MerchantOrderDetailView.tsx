@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { OrderMap } from "@/components/orders/OrderMap";
 import { Button } from "@/components/ui/Button";
 import { getMerchantOrder, updateOrderStatus } from "@/lib/orders/merchantClient";
@@ -91,6 +92,9 @@ export function MerchantOrderDetailView({
               <p className="mt-1 text-xs text-muted">
                 {new Date(order.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
               </p>
+              <div className="mt-2">
+                <OrderStatusBadge status={order.status} createdAt={order.createdAt} deliveryMode={order.deliveryMode} />
+              </div>
             </div>
             <Link
               href={`${basePath}/${shopId}/orders/${orderId}/receipt`}

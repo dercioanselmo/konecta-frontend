@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { listMerchantOrders } from "@/lib/orders/merchantClient";
 import { ClientApiError } from "@/lib/auth/client";
 import { ORDER_STATUS_LABELS } from "@/lib/checkout/orderStatusLabels";
 import type { MerchantOrderSummary } from "@/lib/orders/merchantTypes";
 import type { OrdersTab } from "@/lib/orders/types";
+import type { OrderStatus } from "@/lib/checkout/types";
 
 interface MerchantOrdersListProps {
   shopId: string;
@@ -23,6 +26,8 @@ const TABS: { value: OrdersTab; label: string }[] = [
   { value: "HISTORY", label: "Histórico" },
 ];
 
+const ALL_STATUSES = Object.keys(ORDER_STATUS_LABELS) as OrderStatus[];
+
 export function MerchantOrdersList({
   shopId,
   hideStaff,
@@ -34,6 +39,11 @@ export function MerchantOrdersList({
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // No `status` param on the backend list endpoint yet (see
+  // API_REFERENCE_MERCHANT_ORDERS.md's follow-up ask) — filtered
+  // client-side on whatever page is fetched for now, so a status filter
+  // combined with a lot of orders may miss matches beyond the first page.
+  const [status, setStatus] = useState<OrderStatus | "">("");
   const [orders, setOrders] = useState<MerchantOrderSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,20 +52,28 @@ export function MerchantOrdersList({
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await listMerchantOrders(shopId, { tab, search: search || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page: 0, size: 20 });
+      const page = await listMerchantOrders(shopId, {
+        tab,
+        search: search || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        page: 0,
+        size: status ? 100 : 20,
+      });
       setOrders(page.content);
     } catch (err) {
       setLoadError(err instanceof ClientApiError ? err.message : "Não foi possível carregar as encomendas.");
     } finally {
       setLoading(false);
     }
-  }, [shopId, tab, search, dateFrom, dateTo]);
+  }, [shopId, tab, search, dateFrom, dateTo, status]);
 
   useEffect(() => {
     queueMicrotask(() => { load(); });
   }, [load]);
 
   const serviceUnavailable = loadError != null;
+  const visibleOrders = status ? orders.filter((o) => o.status === status) : orders;
 
   return (
     <div className="flex flex-col gap-6">
@@ -78,7 +96,7 @@ export function MerchantOrdersList({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="sm:col-span-1">
           <Input
             label="Pesquisar"
@@ -89,6 +107,14 @@ export function MerchantOrdersList({
         </div>
         <Input label="Desde" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         <Input label="Até" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <Select label="Estado" value={status} onChange={(e) => setStatus(e.target.value as OrderStatus | "")}>
+          <option value="">Todos os estados</option>
+          {ALL_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {ORDER_STATUS_LABELS[s]}
+            </option>
+          ))}
+        </Select>
       </div>
 
       {loading ? (
@@ -97,13 +123,17 @@ export function MerchantOrdersList({
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-700">
           {loadError}
         </div>
-      ) : orders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <p className="text-sm text-muted">
-          {tab === "ACTIVE" ? "Não há encomendas activas de momento." : "Ainda não há encomendas no histórico."}
+          {status
+            ? "Nenhuma encomenda com esse estado."
+            : tab === "ACTIVE"
+              ? "Não há encomendas activas de momento."
+              : "Ainda não há encomendas no histórico."}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <Link
               key={order.orderId}
               href={`${basePath}/${shopId}/orders/${order.orderId}`}
@@ -116,9 +146,9 @@ export function MerchantOrdersList({
                 </p>
                 <p className="text-xs text-muted">{new Date(order.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}</p>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <p className="font-semibold text-foreground">{order.total.toFixed(2)} MT</p>
-                <p className="text-xs text-muted">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p>
+                <OrderStatusBadge status={order.status} createdAt={order.createdAt} />
               </div>
             </Link>
           ))}

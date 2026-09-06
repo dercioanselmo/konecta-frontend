@@ -26,7 +26,9 @@ export function OrderMap({ order }: { order: Order }) {
       : null;
 
   const delivery =
-    order.deliveryMode === ("DELIVERY" as DeliveryMode) && order.deliveryAddress
+    order.deliveryMode === ("DELIVERY" as DeliveryMode) &&
+    order.deliveryAddress?.latitude != null &&
+    order.deliveryAddress?.longitude != null
       ? { latitude: order.deliveryAddress.latitude, longitude: order.deliveryAddress.longitude }
       : null;
 

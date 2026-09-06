@@ -1,7 +1,5 @@
-// Types for the proposed KONECTA-ORDERS-SERVICE — see
-// API_REFERENCE_ORDERS.md. The service doesn't exist yet; the Orders hub
-// is built fully against this contract and degrades to a clean error
-// state until it ships (matching Checkout's own pre-launch pattern).
+// Types for KONECTA-ORDERS-SERVICE (live, read-only, port 8095) — see
+// API_REFERENCE_konecta_order.md for the real contract.
 
 import type { OrderStatus } from "@/lib/checkout/types";
 

@@ -2,8 +2,9 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 /**
- * Server-only client for the proposed KONECTA-ORDERS-SERVICE — see
- * API_REFERENCE_ORDERS.md. Never import this from a client component.
+ * Server-only client for KONECTA-ORDERS-SERVICE (live, read-only, port
+ * 8095) — see API_REFERENCE_konecta_order.md. Never import this from a
+ * client component.
  */
 
 interface OrdersServiceErrorBody {

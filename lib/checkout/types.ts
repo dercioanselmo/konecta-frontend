@@ -18,8 +18,11 @@ export interface DeliveryAddress {
   address: string;
   city: string;
   neighborhood: string;
-  latitude: number;
-  longitude: number;
+  // Nullable on read (API_REFERENCE_konecta_order.md) even though the
+  // checkout form always submits real coordinates — an older/manual
+  // address without geocoding could come back without them.
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface CheckoutRequest {
@@ -75,11 +78,12 @@ export interface Order {
   contactPhone: string;
   createdAt: string;
   /**
-   * Order/tracking-map fields — PROPOSED, not yet returned by any live
-   * service (see API_REFERENCE_ORDERS.md). All optional/nullable so
-   * today's Checkout-service response (which omits them entirely) still
-   * satisfies this type; the order-detail UI just skips the map/ETA
-   * pieces until a real Orders service starts sending them.
+   * Tracking/map fields — live on KONECTA-ORDERS-SERVICE (port 8095, see
+   * API_REFERENCE_konecta_order.md), always `null` today: no
+   * courier-tracking source exists on the platform yet, and store
+   * lat/lng is only populated by Checkout going forward, not backfilled
+   * on orders placed before the Orders service's migration ran. Optional
+   * here too since Checkout's own order-read endpoint omits them entirely.
    */
   storeLatitude?: number | null;
   storeLongitude?: number | null;

@@ -1,14 +1,54 @@
-# KONECTA Orders microservice — proposed API contract
+# KONECTA Orders microservice — RESOLVED
 
-**Status: PROPOSED. `KONECTA-ORDERS-SERVICE` does not exist yet.** This
-is the mandatory end-of-slice backend report required by `AGENTS.md`'s
-Encomendas/Orders section. The UI is fully built against this contract
-and degrades to a clean error state (not a crash, not fake data)
-everywhere it calls an endpoint that doesn't exist yet.
+**Status: RESOLVED.** `KONECTA-ORDERS-SERVICE` is live at
+`http://localhost:8095` (registered in Eureka, guessed port turned out
+correct again) and matches this proposal essentially exactly — see
+`API_REFERENCE_konecta_order.md` for backend's own authoritative
+version. This file is kept as the historical end-of-slice record; the
+frontend now targets the real service for all order reads.
 
-Eureka name (per AGENTS.md): `KONECTA-ORDERS-SERVICE` (placeholder).
-Local port used in `.env.example`/`.env.local`: `8095` — a guess (next
-sequential after Checkout's `8094`), not a confirmed assignment.
+**Confirmed deltas / clarifications from backend's doc, reconciled into
+the frontend:**
+
+- **Read-only, explicitly interim data ownership**: this service reads
+  Checkout's own `orders`/`order_items` tables directly (same Postgres
+  database) rather than owning its own — backend flagged this as a
+  known, temporary arrangement, not a bug. No frontend impact; the HTTP
+  contract is what's stable.
+- **`DeliveryAddress.latitude`/`longitude` can be `null`** even when the
+  address itself is present — my original proposal had these as
+  non-nullable. Fixed in `lib/checkout/types.ts` (shared with
+  `CheckoutRequest`, which still always submits real numbers by
+  construction) and guarded in `components/orders/OrderMap.tsx`.
+- **Tracking fields (`courierLatitude/Longitude`, `etaMinutes`,
+  `etaAt`) and `storeLatitude/Longitude` are confirmed always `null`
+  today** — no courier-tracking source exists yet, and Checkout hasn't
+  been updated to populate store coordinates at order-creation time.
+  Matches what the frontend already assumed and degrades for.
+- Everything else (list query params, response envelope, detail shape,
+  `tab` active/history split, error codes) confirmed byte-for-byte
+  identical to what was proposed and built against.
+
+## Live verification performed
+
+Logged in as the real customer through the actual running Next app
+(not just raw backend curl):
+
+- `GET /api/orders?tab=ACTIVE` → `200`, real data, 8 orders (all
+  `PAID`/`PENDING_STORE_OPEN` from earlier rounds' testing).
+- `GET /api/orders?tab=HISTORY` → `200`, correctly empty (no terminal
+  orders exist yet).
+- `GET /api/orders/{orderId}` (the switched-over BFF route) → `200`,
+  matches the Orders service's response exactly.
+- Full SSR page (`/orders/{orderId}`) renders correctly: a real PICKUP
+  order's roadmap shows "Pagamento confirmado" (done) and "Levantado"
+  (muted, not yet reached) with the right labels; the map section
+  correctly renders nothing since this order has no coordinates yet
+  (expected — confirms the optional-field degradation works against
+  real data, not just in theory).
+- `tsc --noEmit`, `eslint`, `npm run build` all clean after switching
+  `app/api/orders/[orderId]/route.ts` and `app/orders/[orderId]/page.tsx`
+  from Checkout's bridge endpoint to `ordersApiFetch`.
 
 ---
 

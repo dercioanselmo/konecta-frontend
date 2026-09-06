@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
-import { checkoutApiFetch, CheckoutServiceError } from "@/lib/checkout/checkoutApi";
+import { ordersApiFetch, OrdersServiceError } from "@/lib/orders/ordersApi";
 import { getValidAccessToken, getCurrentUser } from "@/lib/auth/session";
 import type { Order } from "@/lib/checkout/types";
 import { OrderDetailView } from "./OrderDetailView";
@@ -16,13 +16,11 @@ export default async function OrderDetailPage({ params }: PageProps<"/orders/[or
   let loadError: string | null = null;
   if (accessToken) {
     try {
-      // Bridges through Checkout's own order-read endpoint until
-      // KONECTA-ORDERS-SERVICE exists — see API_REFERENCE_ORDERS.md.
-      order = await checkoutApiFetch<Order>(`/api/v1/orders/${orderId}`, {
+      order = await ordersApiFetch<Order>(`/api/v1/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
     } catch (err) {
-      loadError = err instanceof CheckoutServiceError ? err.message : "Não foi possível carregar a encomenda.";
+      loadError = err instanceof OrdersServiceError ? err.message : "Não foi possível carregar a encomenda.";
     }
   }
 

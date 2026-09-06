@@ -1,10 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/Logo";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { UserMenu } from "@/components/UserMenu";
-import { CartBadge } from "@/components/customer/CartBadge";
+import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { SearchBar } from "@/components/customer/SearchBar";
 import { getCurrentUser } from "@/lib/auth/session";
 import { roleHomePath } from "@/lib/auth/roles";
@@ -25,28 +22,7 @@ export default async function CustomerHomePage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
-      <header className="flex items-center justify-between gap-4">
-        <Link href="/home" className="flex items-center gap-3">
-          <Logo size={36} />
-          <span className="text-lg font-bold text-foreground">KONECTA</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          {user ? (
-            <>
-              <CartBadge />
-              <UserMenu user={user} />
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="flex h-9 items-center justify-center rounded-full bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
-            >
-              Entrar
-            </Link>
-          )}
-        </div>
-      </header>
+      <CustomerHeader user={user} />
 
       <div className="mt-5 flex items-center gap-1.5 text-sm text-muted">
         <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-4 w-4 shrink-0">

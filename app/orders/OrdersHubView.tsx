@@ -6,8 +6,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { listOrders, OrdersApiError } from "@/lib/orders/client";
+import { searchOrders, OrdersApiError } from "@/lib/orders/client";
 import { ORDER_STATUS_LABELS } from "@/lib/checkout/orderStatusLabels";
 import type { OrdersTab } from "@/lib/orders/types";
 import type { UserProfile } from "@/lib/auth/types";
@@ -19,22 +18,18 @@ const TABS: { value: OrdersTab; label: string }[] = [
 
 export function OrdersHubView({ user }: { user: UserProfile }) {
   const [tab, setTab] = useState<OrdersTab>("ACTIVE");
-  const [storeName, setStoreName] = useState("");
-  const [productName, setProductName] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState<"createdAt,desc" | "createdAt,asc">("createdAt,desc");
+  const [search, setSearch] = useState("");
 
-  const query = { tab, storeName, productName, dateFrom, dateTo, q, sort, page: 0, size: 20 };
-  const { data, error, isLoading } = useSWR(["orders", query], () => listOrders(query), {
-    revalidateOnFocus: true,
-  });
+  const { data: orders, error, isLoading } = useSWR(
+    ["orders", tab, search],
+    () => searchOrders(tab, search),
+    { revalidateOnFocus: true },
+  );
 
-  const orders = data?.content ?? [];
-  // KONECTA-ORDERS-SERVICE doesn't exist yet (see API_REFERENCE_ORDERS.md)
-  // — any failure at this point is that, not a mix of distinct error
-  // classes worth telling apart in the UI yet.
+  // KONECTA-ORDERS-SERVICE doesn't fully support this single-box search
+  // yet (no OR-across-fields param) — any failure here reads as the
+  // service being unavailable rather than a distinct error class worth
+  // telling apart in the UI yet.
   const serviceUnavailable = error instanceof OrdersApiError;
 
   return (
@@ -57,16 +52,13 @@ export function OrdersHubView({ user }: { user: UserProfile }) {
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Input label="Loja" placeholder="Nome da loja" value={storeName} onChange={(e) => setStoreName(e.target.value)} />
-        <Input label="Produto" placeholder="Nome do produto" value={productName} onChange={(e) => setProductName(e.target.value)} />
-        <Input label="Desde" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <Input label="Até" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        <Input label="Número da encomenda" placeholder="Ex.: 3d80e55f" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select label="Ordenar por" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-          <option value="createdAt,desc">Mais recentes primeiro</option>
-          <option value="createdAt,asc">Mais antigas primeiro</option>
-        </Select>
+      <div className="mt-4">
+        <Input
+          label="Pesquisar"
+          placeholder="Loja, produto, categoria ou número da encomenda"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <main className="mt-6 flex flex-1 flex-col gap-3">
@@ -76,11 +68,13 @@ export function OrdersHubView({ user }: { user: UserProfile }) {
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-700">
             O serviço de encomendas ainda não está disponível. Tente novamente mais tarde.
           </div>
-        ) : error ? (
-          <p className="text-sm text-red-500">Não foi possível carregar as encomendas.</p>
-        ) : orders.length === 0 ? (
+        ) : !orders || orders.length === 0 ? (
           <p className="text-sm text-muted">
-            {tab === "ACTIVE" ? "Não tem encomendas activas de momento." : "Ainda não há encomendas no histórico."}
+            {search.trim()
+              ? "Nenhuma encomenda encontrada para essa pesquisa."
+              : tab === "ACTIVE"
+                ? "Não tem encomendas activas de momento."
+                : "Ainda não há encomendas no histórico."}
           </p>
         ) : (
           orders.map((order) => (

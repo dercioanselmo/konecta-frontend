@@ -241,3 +241,31 @@ lat/lng in Checkout's response today, which is expected and handled).
 The hub's empty/unavailable state live-verified the same way. Full
 list/search behavior against real data is not verifiable until this
 service exists.
+
+---
+
+## Follow-up ask (2026-09-06): a single OR-across-fields search param
+
+The hub's search UX changed to **one text box** that should match store
+name, product name, order number, **and product category** all at once
+— not separate fields the customer fills in individually. Today's list
+endpoint exposes `storeName`, `productName`, and `q` as **separate,
+narrowing (AND) filters**: sending the same text to all three at once
+would wrongly require every field to match simultaneously, not any one
+of them.
+
+**Interim frontend workaround** (shipped now, not waiting on this):
+`lib/orders/client.ts`'s `searchOrders()` fans one query out into three
+parallel requests (`storeName=X`, `productName=X`, `q=X`) and merges the
+results client-side, deduped by `orderId`. This works but costs 3x the
+requests on every keystroke-driven search and — critically — **cannot
+match on product category at all**, since no such param exists today.
+
+**Proposed addition**: a single `search` query param on `GET
+/api/v1/orders` that matches if **any** of store name, any line item's
+product name, the order id substring, or (new) the product's category
+name contains the text (OR semantics, case-insensitive) — replacing the
+need for the frontend's 3-way fan-out entirely once it ships. The
+existing `storeName`/`productName`/`q` params can stay as-is for any
+other consumer that wants a narrower, single-field filter; `search`
+would just be an additional, alternative param.

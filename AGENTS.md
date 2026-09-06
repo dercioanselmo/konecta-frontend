@@ -820,16 +820,56 @@ Define active vs history once in code to match backend filter query params.
 
 ## 5.2 Sort and search
 
-- **Default sort:** most recent first (`createdAt` desc).  
-- User can change sort (e.g. oldest first, by status) if API supports it.  
-- **Search / filters:**
-  - Store (name or id)
-  - Category (if API supports via product category on lines)
-  - Product (match if **any line** contains the product name/id)
-  - Date / date interval (`from`–`to`)
-  - Optional free text on order id
+**One single text input, nothing else.** Per user decision (superseding
+the original multi-field draft below): the hub has exactly **one**
+search box, no visible date-range fields and no visible sort control —
+they were taking up too much space for how rarely they'd be used.
+Typing in it matches, in one shot, across:
+
+- Store name
+- Product name (any line item)
+- Order number (id substring)
+- Product category
+
+Sort is fixed at most-recent-first (`createdAt` desc) — not user-facing.
+Date filtering is dropped from the UI entirely (not just hidden — don't
+build hidden fields for it either).
+
+**Backend reality check**: `KONECTA-ORDERS-SERVICE`'s list endpoint (see
+`API_REFERENCE_konecta_order.md`) exposes `storeName`, `productName`,
+and `q` (order-id substring) as **separate, narrowing (AND) filters** —
+sending the same text to all three at once would wrongly require every
+field to match simultaneously, and there is **no category param at
+all**. Until backend adds a single OR-across-fields search param (see
+the end-of-slice report), the frontend fans the one search box out into
+parallel calls against `storeName`/`productName`/`q` and merges the
+results client-side (deduped by `orderId`) — category matching is
+**not currently possible** and is documented as a backend gap, not
+silently faked.
 
 Empty states in Portuguese for no results.
+
+## 5.3 Receipt (printable slip)
+
+Order detail gets a **"Descarregar recibo"** action producing a
+formal, printable slip the customer can save as PDF via the browser's
+own print dialog (no PDF-generation library, no backend PDF endpoint —
+a dedicated print-styled view is enough for this phase). Not a full
+fiscal invoice (no merchant NUIT/fiscal breakdown — that needs backend
+fields that don't exist yet on the Order model); scope it as a receipt:
+order id, store, date, line items, quantities, prices, totals, payment
+method, delivery info.
+
+---
+
+# 5b. Global navigation
+
+**"Pedidos" must be reachable from every page, including `/home`.**
+Every customer-facing page should render the shared `CustomerHeader`
+(`components/customer/CustomerHeader.tsx`) rather than a hand-rolled
+copy of it — `/home` had drifted into its own inline header that
+missed this and any future header addition; fixed once here, watch for
+new pages repeating that mistake instead of reusing the shared component.
 
 ---
 
@@ -860,7 +900,10 @@ Empty states in Portuguese for no results.
 - [ ] Summary columns: qty, unit price, line total (+ subtotal/delivery/total)  
 - [ ] Product list visible on detail  
 - [ ] Tabs Activas / Histórico; default newest first  
-- [ ] Search/filter by store, product, date range (and category if API allows)  
+- [ ] One search box matches store, product, order number (category pending a backend param — documented, not faked)  
+- [ ] No visible date-range or sort controls on the hub  
+- [ ] "Pedidos" reachable from every customer page via the shared `CustomerHeader`, including `/home`  
+- [ ] Order detail has a "Descarregar recibo" printable/PDF-via-print action  
 - [ ] Checkout success navigates to order detail  
 - [ ] Endpoint needs reported after each slice for Orders backend  
 

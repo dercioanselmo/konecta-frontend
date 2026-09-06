@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import useSWR from "swr";
 import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
 import { OrderMap } from "@/components/orders/OrderMap";
@@ -34,12 +35,20 @@ export function OrderDetailView({ orderId, initialOrder }: { orderId: string; in
 
   return (
     <main className="mt-6 flex flex-1 flex-col gap-6">
-      <div>
-        <p className="text-sm text-muted">Encomenda</p>
-        <h1 className="text-xl font-bold text-foreground">#{current.orderId.slice(0, 8)}</h1>
-        <p className="mt-1 text-xs text-muted">
-          {new Date(current.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">Encomenda</p>
+          <h1 className="text-xl font-bold text-foreground">#{current.orderId.slice(0, 8)}</h1>
+          <p className="mt-1 text-xs text-muted">
+            {new Date(current.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
+          </p>
+        </div>
+        <Link
+          href={`/orders/${orderId}/receipt`}
+          className="flex h-9 shrink-0 items-center justify-center rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
+        >
+          Descarregar recibo
+        </Link>
       </div>
 
       <div className="rounded-2xl border border-border bg-surface p-4">

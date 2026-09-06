@@ -74,6 +74,19 @@ export interface Order {
   contactEmail: string;
   contactPhone: string;
   createdAt: string;
+  /**
+   * Order/tracking-map fields — PROPOSED, not yet returned by any live
+   * service (see API_REFERENCE_ORDERS.md). All optional/nullable so
+   * today's Checkout-service response (which omits them entirely) still
+   * satisfies this type; the order-detail UI just skips the map/ETA
+   * pieces until a real Orders service starts sending them.
+   */
+  storeLatitude?: number | null;
+  storeLongitude?: number | null;
+  courierLatitude?: number | null;
+  courierLongitude?: number | null;
+  etaMinutes?: number | null;
+  etaAt?: string | null;
 }
 
 export type CheckoutErrorCode =

@@ -38,6 +38,9 @@ export function CustomerHeader({
         <ThemeToggle />
         {user ? (
           <>
+            <Link href="/orders" className="text-sm text-muted hover:text-foreground hover:underline" title="As minhas encomendas">
+              Pedidos
+            </Link>
             <CartBadge />
             <UserMenu user={user} />
           </>

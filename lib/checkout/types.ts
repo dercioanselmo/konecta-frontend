@@ -91,6 +91,20 @@ export interface Order {
   courierLongitude?: number | null;
   etaMinutes?: number | null;
   etaAt?: string | null;
+  /**
+   * Moment the order entered its current status — live on
+   * KONECTA-ORDERS-SERVICE (`orders.updated_at`, free/derived, not a new
+   * column: Checkout sets it equal to `createdAt` at insert and never
+   * revisits a row, so it already means exactly this). Optional since
+   * Checkout's own order-read endpoint doesn't return it.
+   */
+  statusUpdatedAt?: string;
+  /**
+   * Opaque per-order token for the pickup/delivery QR code — present
+   * once Checkout generates it at order creation. `null`/absent for
+   * orders placed before this existed.
+   */
+  qrCode?: string | null;
 }
 
 export type CheckoutErrorCode =

@@ -1,7 +1,6 @@
-// Types for the PROPOSED merchant/staff order-management endpoints — see
-// API_REFERENCE_MERCHANT_ORDERS.md. Nothing here exists on any backend
-// service yet; the merchant Orders tab is built fully against this
-// contract and degrades to a clean error state until it ships.
+// Types for the merchant/staff order-management endpoints — live on
+// KONECTA-ORDERS-SERVICE, see API_REFERENCE_konecta_order.md and
+// API_REFERENCE_MERCHANT_ORDERS.md (RESOLVED) for the real contract.
 
 import type { Order, OrderStatus } from "@/lib/checkout/types";
 import type { OrdersTab } from "./types";
@@ -14,6 +13,8 @@ export interface MerchantOrderSummary {
   itemCount: number;
   total: number;
   createdAt: string;
+  /** Moment the order entered its current status — see `Order.statusUpdatedAt`. */
+  statusUpdatedAt?: string;
 }
 
 export interface MerchantOrdersListQuery {

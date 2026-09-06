@@ -43,12 +43,6 @@ export function MerchantOrderDetailView({
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
-  // The backend doesn't expose a per-status timestamp yet (only
-  // `createdAt`) — tracked locally so the urgency badge resets to
-  // neutral the moment *this session* changes the status, instead of
-  // staying at whatever tier the previous status had already reached.
-  // Falls back to `createdAt` for a status this session didn't just set.
-  const [statusSince, setStatusSince] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -75,7 +69,6 @@ export function MerchantOrderDetailView({
     try {
       const updated = await updateOrderStatus(shopId, orderId, status);
       setOrder(updated);
-      setStatusSince(new Date().toISOString());
     } catch (err) {
       setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atualizar o estado da encomenda.");
     } finally {
@@ -103,7 +96,7 @@ export function MerchantOrderDetailView({
                 {new Date(order.createdAt).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
               </p>
               <div className="mt-2">
-                <OrderStatusBadge status={order.status} since={statusSince ?? order.createdAt} deliveryMode={order.deliveryMode} />
+                <OrderStatusBadge status={order.status} since={order.statusUpdatedAt ?? order.createdAt} deliveryMode={order.deliveryMode} />
               </div>
             </div>
             <Link

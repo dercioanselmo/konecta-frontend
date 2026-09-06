@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
 import { OrderMap } from "@/components/orders/OrderMap";
+import { OrderQrCode } from "@/components/orders/OrderQrCode";
 import { getOrder } from "@/lib/checkout/client";
 import type { Order } from "@/lib/checkout/types";
 
@@ -58,6 +59,8 @@ export function OrderDetailView({ orderId, initialOrder }: { orderId: string; in
       <div className="rounded-2xl border border-border bg-surface p-4">
         <OrderStatusRoadmap status={current.status} deliveryMode={current.deliveryMode} />
       </div>
+
+      {current.qrCode && !isTerminal(current) ? <OrderQrCode qrCode={current.qrCode} /> : null}
 
       <OrderMap order={current} />
 

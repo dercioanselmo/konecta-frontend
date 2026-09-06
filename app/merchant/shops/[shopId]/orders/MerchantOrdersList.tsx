@@ -79,7 +79,18 @@ export function MerchantOrdersList({
     <div className="flex flex-col gap-6">
       <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
-      <h2 className="text-xl font-bold text-foreground">Encomendas</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold text-foreground">Encomendas</h2>
+        <Link
+          href={`${basePath}/${shopId}/orders/scan`}
+          className="flex h-10 items-center justify-center gap-2 rounded-xl bg-brand-green px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+        >
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-4 w-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3m12-4v3a1 1 0 0 1-1 1h-3M4 12h16" />
+          </svg>
+          Ler QR code
+        </Link>
+      </div>
 
       <div className="flex gap-2">
         {TABS.map((t) => (
@@ -148,7 +159,7 @@ export function MerchantOrdersList({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <p className="font-semibold text-foreground">{order.total.toFixed(2)} MT</p>
-                <OrderStatusBadge status={order.status} since={order.createdAt} />
+                <OrderStatusBadge status={order.status} since={order.statusUpdatedAt ?? order.createdAt} />
               </div>
             </Link>
           ))}

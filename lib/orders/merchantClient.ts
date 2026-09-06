@@ -39,3 +39,17 @@ export function updateOrderStatus(shopId: string, orderId: string, status: Order
     body: JSON.stringify({ status }),
   });
 }
+
+/**
+ * Scans the order's QR token and completes it in one step — from any
+ * non-terminal, non-cancelled/refunded status straight to whichever
+ * status is "done" for that order's delivery mode (`PICKED_UP` or
+ * `DELIVERED`), skipping the normal step-by-step transitions. See
+ * API_REFERENCE_ORDER_QR.md.
+ */
+export function completeOrderByQr(shopId: string, qrCode: string): Promise<MerchantOrder> {
+  return request(`/api/merchant/shops/${shopId}/orders/complete-by-qr`, {
+    method: "POST",
+    body: JSON.stringify({ qrCode }),
+  });
+}

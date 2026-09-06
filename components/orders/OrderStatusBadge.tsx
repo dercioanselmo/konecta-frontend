@@ -18,11 +18,10 @@ const TIER_TONE = {
  * levantamento-delivery), so a paid order doesn't sit unnoticed. Every
  * other status renders as a plain neutral pill.
  *
- * `since` should be the moment the order **entered its current status**,
- * not necessarily `createdAt` — pass whatever's most accurate the caller
- * has (see `MerchantOrderDetailView`, which tracks this locally right
- * after a status change since the backend doesn't expose a per-status
- * timestamp yet).
+ * `since` should be the moment the order **entered its current status**
+ * — pass `order.statusUpdatedAt ?? order.createdAt` (live on
+ * KONECTA-ORDERS-SERVICE: `statusUpdatedAt` is `orders.updated_at`,
+ * which already means exactly this).
  */
 export function OrderStatusBadge({
   status,

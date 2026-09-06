@@ -265,7 +265,7 @@ to ship, just not optimal at scale or in the one specific edge case (3).
 
 ---
 
-## Follow-up ask (2026-09-07): a per-status timestamp
+## Follow-up ask (2026-09-07): a per-status timestamp — RESOLVED same day
 
 Confirmed the urgency badge's timer needs to reset when an order enters
 a new status, not keep counting from `createdAt` — right now the
@@ -280,3 +280,17 @@ The doc already mentions `order_status_history` records
 as e.g. `statusUpdatedAt` on both `GET .../orders/{orderId}` and each
 row of `GET .../orders` (list) would let the frontend compute this
 correctly everywhere, not just in the one session that made the change.
+
+**Resolved same day**: backend added `statusUpdatedAt` to both
+`MerchantOrderSummaryResponse` and `MerchantOrderDetailResponse` — as a
+free read of the already-existing `orders.updated_at` column, not a new
+query, since Checkout sets it equal to `createdAt` at insert and never
+revisits a row afterward (the only other writer is this service's own
+status PATCH). Live-verified by backend: a fresh order shows
+`statusUpdatedAt == createdAt`; a transitioned order shows a distinctly
+later value; a PATCH's own response reflects the new timestamp
+immediately. Frontend switched over: `Order`/`MerchantOrder` types gained
+`statusUpdatedAt`, `OrderStatusBadge` now reads
+`order.statusUpdatedAt ?? order.createdAt` directly, and the local
+same-session-only tracking workaround in `MerchantOrderDetailView.tsx`
+was removed as no longer needed.

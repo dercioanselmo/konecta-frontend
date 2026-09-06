@@ -928,6 +928,44 @@ management is.
 
 ---
 
+# 7c. QR code pickup/delivery confirmation
+
+Every paid order carries an opaque QR token (`Order.qrCode`), generated
+once at checkout time and never regenerated. The customer shows it —
+in the store for pickup, or to whoever is delivering it for delivery —
+and scanning it completes the order in one step.
+
+- **Customer side**: the order detail screen (`app/orders/[orderId]/OrderDetailView.tsx`)
+  shows the QR (`components/orders/OrderQrCode.tsx`, rendered client-side
+  from the token via the `qrcode` package — no image from the backend)
+  whenever `qrCode` is present **and** the order isn't already terminal
+  (delivered/picked-up/cancelled/refunded) — no reason to show a code
+  for an order that's already done.
+- **Merchant/staff side ("in the store", for now)**: a camera-based
+  scanner (`components/merchant/QrScanner.tsx`, plain `getUserMedia` +
+  `jsQR`, no all-in-one scanning library — same "build the specific
+  piece we need" philosophy as the Leaflet map wrapper) reachable from
+  "Ler QR code" on the Orders tab. Scanning a valid code calls a
+  dedicated **complete-by-qr** action that jumps the order straight to
+  its terminal success status — `PICKED_UP` for pickup, `DELIVERED`
+  for delivery — **from any non-terminal, non-cancelled/non-refunded
+  status**, bypassing the normal step-by-step transition table entirely.
+  This is deliberately a different, wider-scoped action than the regular
+  status-change buttons (§7b) — validate this server-side as its own
+  rule, not by loosening the regular transition table to allow arbitrary
+  jumps.
+- **Courier-facing scanning is explicitly out of scope for this round** —
+  "for now, later in the delivery UI" per the request that introduced
+  this. Don't build a separate courier scan surface yet.
+- Never trust a client-decoded QR value as sufecient by itself — the
+  scan only *proposes* a token; the backend must independently resolve
+  it to a real order, confirm it belongs to the scanning shop, and
+  reject cancelled/refunded/already-terminal orders, the same
+  never-trust-the-client discipline as every other status change in
+  this app.
+
+---
+
 # 8. Acceptance criteria (frontend)
 
 - [ ] Order detail: roadmap status UI in PT, map with store (+ delivery) pins  

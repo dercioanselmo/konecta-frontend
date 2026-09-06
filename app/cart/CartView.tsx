@@ -6,8 +6,23 @@ import { useState } from "react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { useCart, useCarts } from "@/lib/cart/useCart";
 import { updateCartItemQuantity, removeCartItem, CartApiError } from "@/lib/cart/client";
-import type { CartItem } from "@/lib/cart/types";
+import { useLiveStoreOpen } from "@/lib/stores/useLiveStoreOpen";
+import type { CartItem, CartSummary } from "@/lib/cart/types";
 import type { UserProfile } from "@/lib/auth/types";
+
+function CartSwitcherCard({ summary, active, onSelect }: { summary: CartSummary; active: boolean; onSelect: () => void }) {
+  const isOpen = useLiveStoreOpen(summary.storeId, summary.isStoreOpen);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`min-w-44 rounded-xl border p-3 text-left ${active ? "border-brand-green bg-brand-green/10" : "border-border bg-surface"}`}
+    >
+      <p className="truncate text-sm font-semibold text-foreground">{summary.storeName}</p>
+      <p className="mt-1 text-xs text-muted">{summary.itemCount} artigo(s) · {isOpen ? "Aberta" : "Fechada"}</p>
+    </button>
+  );
+}
 
 export function CartView({ user }: { user: UserProfile }) {
   const { carts, isLoading: cartsLoading, refresh: refreshCarts } = useCarts();
@@ -17,6 +32,7 @@ export function CartView({ user }: { user: UserProfile }) {
   const { cart, isLoading, refresh } = useCart(selectedSummary?.storeId);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isStoreOpen = useLiveStoreOpen(cart.storeId, cart.isStoreOpen);
 
   const changeQuantity = async (item: CartItem, quantity: number) => {
     if (!cart) return;
@@ -60,10 +76,12 @@ export function CartView({ user }: { user: UserProfile }) {
         <>
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {carts.map((summary) => (
-              <button key={summary.storeId} type="button" onClick={() => setSelectedStoreId(summary.storeId)} className={`min-w-44 rounded-xl border p-3 text-left ${summary.storeId === cart?.storeId ? "border-brand-green bg-brand-green/10" : "border-border bg-surface"}`}>
-                <p className="truncate text-sm font-semibold text-foreground">{summary.storeName}</p>
-                <p className="mt-1 text-xs text-muted">{summary.itemCount} artigo(s) · {summary.isStoreOpen ? "Aberta" : "Fechada"}</p>
-              </button>
+              <CartSwitcherCard
+                key={summary.storeId}
+                summary={summary}
+                active={summary.storeId === cart?.storeId}
+                onSelect={() => setSelectedStoreId(summary.storeId)}
+              />
             ))}
           </div>
           {isLoading || !cart ? <p className="mt-6 text-sm text-muted">A carregar…</p> : cart.items.length === 0 ? <p className="mt-6 text-sm text-muted">Este carrinho está vazio.</p> : <>
@@ -73,7 +91,7 @@ export function CartView({ user }: { user: UserProfile }) {
                 <Image src={cart.storeLogoUrl} alt="" fill sizes="40px" className="object-cover" unoptimized />
               </div>
             ) : null}
-            <div><p className="font-semibold text-foreground">{cart.storeName}</p><p className="text-xs text-muted">{cart.isStoreOpen ? "Loja aberta" : "Loja fechada"}</p></div>
+            <div><p className="font-semibold text-foreground">{cart.storeName}</p><p className="text-xs text-muted">{isStoreOpen ? "Loja aberta" : "Loja fechada"}</p></div>
           </div>
 
           {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}

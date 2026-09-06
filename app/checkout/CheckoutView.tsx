@@ -12,7 +12,7 @@ import { useCart } from "@/lib/cart/useCart";
 import { saveCheckoutDraft } from "@/lib/cart/client";
 import { placeOrder, CheckoutApiError } from "@/lib/checkout/client";
 import { fetchNeighborhoods } from "@/lib/auth/client";
-import { getPublicStoreStatus } from "@/lib/stores/publicClient";
+import { useLiveStoreOpen } from "@/lib/stores/useLiveStoreOpen";
 import type { UserPreferences, UserProfile } from "@/lib/auth/types";
 import type { DeliveryMode } from "@/lib/checkout/types";
 import type { Neighborhood } from "@/lib/auth/types";
@@ -42,7 +42,7 @@ function deliveryModeFromPreference(pref: UserPreferences["deliveryPreference"])
 export function CheckoutView({ user, preferences, storeId }: { user: UserProfile; preferences: UserPreferences; storeId: string }) {
   const router = useRouter();
   const { cart, isLoading: cartLoading, refresh: refreshCart } = useCart(storeId);
-  const [storeIsOpen, setStoreIsOpen] = useState(false);
+  const storeIsOpen = useLiveStoreOpen(storeId, cart.isStoreOpen);
 
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
     deliveryModeFromPreference(preferences.deliveryPreference),
@@ -76,26 +76,6 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   useEffect(() => {
     fetchNeighborhoods("Maputo").then(setNeighborhoods);
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    const refreshStoreStatus = async () => {
-      try {
-        const status = await getPublicStoreStatus(storeId);
-        if (active) setStoreIsOpen(status.isOpen);
-      } catch {
-        if (active) setStoreIsOpen(cart.isStoreOpen);
-      }
-    };
-    void refreshStoreStatus();
-    const interval = window.setInterval(refreshStoreStatus, 60_000);
-    window.addEventListener("focus", refreshStoreStatus);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshStoreStatus);
-    };
-  }, [cart.isStoreOpen, storeId]);
 
   useEffect(() => {
     if (!cartLoading && cart.items.length === 0) {
@@ -178,7 +158,7 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
       setFormError(
         err instanceof CheckoutApiError && err.code === "STORE_CLOSED"
           ? "A loja fechou entretanto. Os seus dados foram guardados neste carrinho."
-          : err instanceof CheckoutApiError && err.code === "SERVICE_UNAVAILABLE"
+          : err instanceof CheckoutApiError && (err.status === 503 || err.code === "SERVICE_UNAVAILABLE")
             ? "O serviço de checkout não conseguiu contactar o carrinho ou o stock. Tente novamente em alguns instantes."
           : err instanceof CheckoutApiError
             ? (err.details?.join(" ") ?? err.message)

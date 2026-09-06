@@ -34,7 +34,8 @@ const EMPTY_CART = (storeId: string): Cart => ({
 export function useCarts() {
   const { data, error, isLoading, mutate } = useSWR<{ carts: CartSummary[] }>("carts", getCarts, {
     errorRetryCount: 3,
-    revalidateOnFocus: false,
+    revalidateOnFocus: true,
+    refreshInterval: 60_000,
   });
   return {
     carts: data?.carts ?? [],

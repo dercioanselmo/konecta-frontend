@@ -249,7 +249,9 @@ Use this as the checklist for UX implementation order (from BRD). Details of fie
 
 **Admin:** Dashboard, Transactions/commissions, Users, Orders ops.
 
-**Cross-cutting:** Open/closed badges, skeleton loaders, empty states, toast errors, “replace cart?” modal, strong CTAs on small screens.
+**Cross-cutting:** Open/closed badges, skeleton loaders, empty states, toast errors, strong CTAs on small screens.
+
+**Live open/closed badges — required everywhere a store's status is shown, not just checkout.** Any screen displaying a store's open/closed state (cart, store page, checkout, and any future one — product page, order screens, merchant-facing "your store as customers see it" previews, etc.) must reflect a merchant's hours change **without the customer reloading the page**. Use the shared `useLiveStoreOpen(storeId, initialIsOpen)` hook (`lib/stores/useLiveStoreOpen.ts` — polls the public store-status endpoint every 60s + on window focus); wrap it in a small client component (see `components/customer/StoreOpenBadge.tsx`) when the badge needs to sit inside a Server Component page, exactly like `/stores/[storeId]` does. Always seed it with the server-rendered `isOpen` value so there's no flash of the wrong state before the first client check. **Exception, stated explicitly rather than silently skipped**: a list of many stores at once (e.g. the nearby-shops grid on `/categories/[categoryId]`) should NOT get one `useLiveStoreOpen` call per row — that's one request per store per interval, which doesn't scale. For a multi-store list, batch-refresh the whole list on the same interval instead (one request updates every row's badge at once); this hasn't been built yet as of this note — do it if/when that screen's live-accuracy is asked for, don't build 50 individual pollers to get there.
 
 ---
 
@@ -684,5 +686,192 @@ Checkout is exercised primarily as **Customer**.
 - A closed store means **no payment attempt at all**, not a pending one — the CTA saves a draft on the cart instead of submitting.
 - Payment integration is stubbed; UI still collects method for the order record.
 - Always report backend endpoint needs after each slice.
+
+
+
+# KONECTA Frontend (Encomendas / Orders)
+
+You are a **principal-level full-stack engineer and AI implementation agent** building the **KONECTA** Next.js frontend for **customer orders**: detail (tracking), active list, and history.
+
+KONECTA is multi-merchant local commerce for **Mozambique** (Maputo-first). **Mobile-first**. **All UI copy in Portuguese (Portugal/Mozambique style as used in the app)**. Currency **MT**. Prices are IVA-inclusive unless the invoice screen says otherwise.
+
+Cart and Checkout are already implemented. After checkout success the user lands on the **Order** experience.
+
+---
+
+# 1. What you are building
+
+1. **Order detail / tracking screen** — status roadmap, map, line items, value summary  
+2. **Orders hub** — tabs **Activas** vs **Histórico**, search and filters, most recent first  
+3. Navigation from checkout success (`orderId`) and from bottom nav **Pedidos**
+
+Orders are **permanent** in the system: the customer can open any past order anytime.
+
+**Out of scope unless asked:** merchant/staff order console, courier app, real payment capture, full fiscal PDF (link if API provides).
+
+---
+
+# 2. Platform services (Eureka)
+
+| Eureka name | Local | Frontend use |
+|-------------|-------|----------------|
+| `KONECTA-SECURITY-SERVICE` | `localhost:8091` | JWT, profile |
+| `KONECTA-STORES-AND-STOCK-SERVICE` | `localhost:8092` | Store display if needed |
+| Cart service | as registered | Return to cart only from checkout, not from completed orders |
+| `KONECTA-CHECKOUT-SERVICE` | `localhost:8094` | Place order (already); may still expose get-order until Orders owns reads |
+| **`KONECTA-ORDERS-SERVICE`** (new) | TBD | **Source of truth** for list/detail/status/history/search |
+
+Prefer **Orders service** for all order reads and customer-driven status views. If temporarily only Checkout has the order, follow project wiring until Orders is up — then switch.
+
+Always send `Authorization: Bearer <access_token>`.
+
+---
+
+# 3. How to work
+
+1. Reuse checkout patterns: summary columns, layout, auth client, map stack (Leaflet/OSM or whatever the app already uses — **no paid Google requirement**).  
+2. After **each** implementation slice, report **backend endpoints needed** (method, purpose, request/response fields, errors) for the Orders agent / `context.md`.  
+3. Do not implement merchant accept/prepare UI here unless the user expands scope.
+
+---
+
+# 4. Order detail screen
+
+## 4.1 Status UI (“roadmap”)
+
+- Present status as a **creative vertical or horizontal roadmap** (timeline with steps, icons, current step highlighted, completed steps checked, future steps muted).
+- Labels in **Portuguese**, human-friendly (not raw enums only).
+- Reflect delivery mode:
+  - **Pickup:** do not emphasize courier / em trânsito / entregue em casa; end at **Levantado**.
+  - **Delivery:** include estafeta, em trânsito, entregue.
+- Map status from API enums, e.g.:
+
+| API (example) | UI (PT) |
+|---------------|---------|
+| `PAID` | Pagamento confirmado |
+| `PENDING_STORE_OPEN` | À espera da abertura da loja |
+| `STORE_CONFIRMED` | Loja aceitou |
+| `PREPARING` | A preparar |
+| `READY_FOR_PICKUP` | Pronto para levantar / recolher |
+| `COURIER_ASSIGNED` | Estafeta atribuído |
+| `PICKED_UP` | Recolhido / saiu da loja |
+| `IN_TRANSIT` | A caminho |
+| `DELIVERED` | Entregue |
+| `CANCELLED` | Cancelado |
+| `REFUNDED` | Reembolsado |
+
+- Polling or refetch on focus for active orders; optional live updates later.
+
+## 4.2 Map
+
+- Always visible on detail when coordinates exist.
+- **Pins:**
+  - **Loja** (store lat/lng)
+  - **Local de entrega** (customer delivery point) when mode is delivery; for pickup, store pin is enough (or store + optional user location if useful).
+- **After status ≥ `PICKED_UP` (delivery):** if API provides courier position or route geometry, show **trajectory** and **ETA**; if not, show straight line store→delivery + ETA text when API sends `etaMinutes` / `etaAt`.
+- Do not block the page if map fails — keep list and status.
+
+## 4.3 Product list
+
+- Keep the list of purchased products visible (name, image if any, qty).
+- Align with cart/checkout visual language.
+
+## 4.4 Value summary (same idea as checkout)
+
+Table/section with at least:
+
+| Coluna | Conteúdo |
+|--------|----------|
+| Produto | Nome |
+| Quantidade | Inteiro |
+| Preço unitário | MT |
+| Preço total da linha | qty × unit |
+
+Then footer:
+
+- Subtotal  
+- Taxa de entrega (se aplicável)  
+- Total  
+
+Reuse/adapt the **checkout summary component** so cart, checkout, and order detail stay consistent.
+
+## 4.5 Other detail fields
+
+- Order number / id  
+- Store name  
+- Delivery mode (Levantar na loja / Receber)  
+- Address or store pickup info  
+- Contact email & phone on the order  
+- Payment method (even if stubbed)  
+- Created at  
+
+---
+
+# 5. Orders hub (lista)
+
+## 5.1 Tabs
+
+| Tab | Contents |
+|-----|----------|
+| **Activas** | Not terminal success/cancel/refund — e.g. from `PAID` through `IN_TRANSIT` / `READY_FOR_PICKUP` / etc. (exclude `DELIVERED`, `CANCELLED`, `REFUNDED`, and terminal `PICKED_UP` for pickup if you treat it as history) |
+| **Histórico** | `DELIVERED`, `CANCELLED`, `REFUNDED`, and completed pickup (`PICKED_UP` when mode is pickup) |
+
+Define active vs history once in code to match backend filter query params.
+
+## 5.2 Sort and search
+
+- **Default sort:** most recent first (`createdAt` desc).  
+- User can change sort (e.g. oldest first, by status) if API supports it.  
+- **Search / filters:**
+  - Store (name or id)
+  - Category (if API supports via product category on lines)
+  - Product (match if **any line** contains the product name/id)
+  - Date / date interval (`from`–`to`)
+  - Optional free text on order id
+
+Empty states in Portuguese for no results.
+
+---
+
+# 6. Product rules (general project)
+
+- One store per order (from mono-store cart).  
+- Customer sees **only own** orders.  
+- Maputo-first geography where relevant.  
+- Test as **Customer** primarily.
+
+---
+
+# 7. Test users (local)
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin | `dercio.anselmo@yahoo.com` | `EmitaSpencer13` |
+| Merchant | `dercio.anselmo@zohomail.com` | `EmitaSpencer13` |
+| Merchant staff | `dercio.miguel@zohomail.com` | `Emit@Spencer13` |
+| Customer | `dercio.miguel@gmail.com` | `EmitaSpencer13` |
+
+---
+
+# 8. Acceptance criteria (frontend)
+
+- [ ] Order detail: roadmap status UI in PT, map with store (+ delivery) pins  
+- [ ] Trajectory/ETA when order is picked up and data exists  
+- [ ] Summary columns: qty, unit price, line total (+ subtotal/delivery/total)  
+- [ ] Product list visible on detail  
+- [ ] Tabs Activas / Histórico; default newest first  
+- [ ] Search/filter by store, product, date range (and category if API allows)  
+- [ ] Checkout success navigates to order detail  
+- [ ] Endpoint needs reported after each slice for Orders backend  
+
+---
+
+# 9. When in doubt
+
+- UI always Portuguese.  
+- Detail = status art + map + lines + money summary.  
+- History never deletes orders.  
+- Orders **read API** = `KONECTA-ORDERS-SERVICE` when available.  
+
 
 <!-- END:nextjs-agent-rules -->

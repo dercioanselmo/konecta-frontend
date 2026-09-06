@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { SearchBar } from "@/components/customer/SearchBar";
+import { StoreOpenBadge } from "@/components/customer/StoreOpenBadge";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import { getCurrentUser } from "@/lib/auth/session";
 import { ApiError } from "@/lib/auth/types";
@@ -45,7 +46,7 @@ export default async function StorePage({ params }: PageProps<"/stores/[storeId]
             ) : null}
             <div>
               <h1 className="text-2xl font-bold text-foreground">{shop.name}</h1>
-              <p className="text-sm text-muted">{shop.isOpen ? "Aberta agora" : "Fechada agora"}</p>
+              <StoreOpenBadge storeId={storeId} initialIsOpen={shop.isOpen} className="text-sm text-muted" />
             </div>
           </div>
 

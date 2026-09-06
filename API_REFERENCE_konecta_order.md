@@ -1,9 +1,10 @@
 # Orders — API inventory
 
 Base URL: `http://localhost:8095` · Eureka name: `KONECTA-ORDERS-SERVICE`
-Auth: `Authorization: Bearer <JWT>` from `KONECTA-SECURITY-SERVICE` (HS256, shared secret — the secret string's raw UTF-8 bytes are the HMAC key, not base64-decoded). Any authenticated role; no role restriction.
+Auth: `Authorization: Bearer <JWT>` from `KONECTA-SECURITY-SERVICE` (HS256, shared secret — the secret string's raw UTF-8 bytes are the HMAC key, not base64-decoded). Customer endpoints: any authenticated role. Merchant endpoints: `MERCHANT`, `MERCHANT_STAFF`, or `ADMIN` only.
 Errors: `{ code, message, details[], timestamp }` — `code` machine-readable, `message`/`details` in Portuguese.
-Owns: nothing yet writes here — this service reads the same `orders`/`order_items` tables `KONECTA-CHECKOUT-SERVICE` owns and writes to, plus a handful of additive tracking columns it added itself (see "Data ownership" below). Read-only: **no write endpoints exist on this service.**
+Owns: `order_status_history` (this service's own table, created here). Reads (and, as of the merchant status-write endpoint, **also writes status to**) the same `orders`/`order_items` tables `KONECTA-CHECKOUT-SERVICE` owns — same physical database, plus a handful of additive tracking columns this service added itself. See "Data ownership" below before assuming anything about who else may write these rows.
+Calls out to: `KONECTA-STORES-AND-STOCK-SERVICE` (merchant shop-ownership check) and `KONECTA-SECURITY-SERVICE` (`customerName` resolution on merchant endpoints) — both forward the caller's own Bearer token, no service credential.
 
 ---
 
@@ -122,6 +123,154 @@ user returns `404`, not `403` (doesn't confirm existence to a non-owner).
 
 ---
 
+## Merchant order management — `/api/v1/merchant/shops/{shopId}/orders`
+
+Shop-scoped order management for merchants/staff (admin reuses the same
+views). Distinct from the customer-facing endpoints above, which are
+owner-scoped by `customer_user_id` and can never see another customer's
+order regardless of role.
+
+### Auth
+
+`Authorization: Bearer <accessToken>`, role `MERCHANT` (shop owner),
+`MERCHANT_STAFF`, or `ADMIN`. Any other role (e.g. `CUSTOMER`) → `403
+ACCESS_DENIED` before any handler runs.
+
+- **`MERCHANT_STAFF`**: the JWT's own `shopId` claim (see
+  `API_REFERENCE_konecta_security.md`) must equal the path's `{shopId}`.
+  Mismatch → `403 ACCESS_DENIED`. This service trusts the claim as-is (no
+  extra lookup) — it's short-lived (15 min) and issued by Security itself.
+- **`MERCHANT`**: this service has no shop/ownership data of its own, so
+  ownership is verified by calling `KONECTA-STORES-AND-STOCK-SERVICE`'s own
+  `GET /api/v1/merchant/shops/{shopId}` **with the caller's own forwarded
+  token** — that endpoint already implements the owner/assigned/admin
+  check; its `200` authorizes, its `404` (shop not owned/assigned/found) is
+  mapped to this service's own `404 SHOP_NOT_FOUND`.
+- **`ADMIN`**: no ownership check — any `shopId`.
+
+### `GET /` — list, single-box OR search, filter, paginate
+
+**Query params**
+
+| Param | Type | Notes |
+|---|---|---|
+| `tab` | `ACTIVE` \| `HISTORY` | Same split as the customer-facing list. Omit for both. |
+| `search` | string | **OR semantics** — matches if **any** of: customer contact (email or phone), any line item's product name, or the order id substring contains this text (case-insensitive). Deliberately OR, not the customer hub's separate AND-narrowing params. |
+| `dateFrom` / `dateTo` | `YYYY-MM-DD` | Inclusive range on `createdAt`. |
+| `page` / `size` | int | Default `page=0`, `size=20`. |
+
+Sort is fixed most-recent-first — not exposed as a param on this endpoint.
+
+**Response `200 OK`**
+
+```json
+{
+  "content": [
+    {
+      "orderId": "1df782e9-9173-4437-bca2-2f8c6a0cf466",
+      "status": "STORE_CONFIRMED",
+      "customerName": "Dercio Miguel",
+      "customerPhone": "+258841234567",
+      "itemCount": 2,
+      "total": 800.02,
+      "createdAt": "2026-09-05T20:09:50.272251Z"
+    }
+  ],
+  "totalElements": 7,
+  "totalPages": 1,
+  "page": 0,
+  "size": 20
+}
+```
+
+`storeId`/`storeName` are omitted — the whole list is already scoped to one
+shop via the URL.
+
+`customerName` is a real `"First Last"` name resolved from Security — see
+"customerName source" below for the lookup mechanics and the (rare)
+fallback case.
+
+### `GET /{orderId}` — detail
+
+Same shape as the customer-facing `Order` (see "Data models" above) plus
+`customerName`. `404 ORDER_NOT_FOUND` for an unknown id or one belonging to
+a different shop than `{shopId}`.
+
+### `PATCH /{orderId}/status` — transition an order's status
+
+**The only write endpoint on this service.** Validated server-side against
+a real state machine — **never trust a client-submitted status as valid
+without this check**, regardless of what a frontend's own UI hints at.
+
+**Request**: `{ "status": "STORE_CONFIRMED" }` — any `OrderStatus` enum
+value; one not in the enum at all → `400 VALIDATION_ERROR`.
+
+**Merchant-triggerable transitions**:
+
+| From | To |
+|---|---|
+| `PAID`, `PENDING_STORE_OPEN` | `STORE_CONFIRMED`, `CANCELLED` |
+| `STORE_CONFIRMED` | `PREPARING`, `CANCELLED` |
+| `PREPARING` | `READY_FOR_PICKUP`, `CANCELLED` |
+| `READY_FOR_PICKUP` (pickup order) | `PICKED_UP` |
+| `READY_FOR_PICKUP` (delivery order) | `COURIER_ASSIGNED` |
+| `COURIER_ASSIGNED` (delivery order) | `PICKED_UP` |
+
+Any other `(from, to)` pair — including `IN_TRANSIT`/`DELIVERED`, which are
+intentionally **not** merchant-triggerable (courier/system-driven) — is
+`409 INVALID_TRANSITION`.
+
+On success: the order's `status`/`updated_at` are updated in place (same
+row Checkout created), a row is appended to this service's own
+`order_status_history` (`order_id, from_status, to_status, actor_user_id`
+= the caller's JWT `sub`, `created_at`), and the response is the updated
+detail (same shape as `GET`). The change is immediately visible through
+both this service's own customer-facing `GET /api/v1/orders/{orderId}`
+**and** Checkout's own `GET /api/v1/orders/{orderId}` — same row, live-
+verified.
+
+**Errors**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | `status` isn't a real `OrderStatus` value |
+| `409` | `INVALID_TRANSITION` | Requested status isn't reachable from the current one for this order's `deliveryMode` |
+| `404` | `ORDER_NOT_FOUND` | Unknown id or wrong shop |
+| `403` | `ACCESS_DENIED` | Staff `shopId` claim mismatch, or wrong role |
+| `404` | `SHOP_NOT_FOUND` | `MERCHANT` token for a shop they don't own |
+
+### `MerchantOrderSummary`
+
+`{ orderId, status, customerName, customerPhone, itemCount, total, createdAt }`
+
+### `MerchantOrder`
+
+Same as `Order` (customer-facing detail, above) plus `customerName: string`.
+
+### customerName source
+
+No order itself captures a customer's real name — only
+`contactEmail`/`contactPhone` (Checkout's `CheckoutRequest` never collected
+one). `customerName` is resolved live, per request, from
+`KONECTA-SECURITY-SERVICE`'s `GET /api/v1/users/{id}/summary` (order
+detail) / `GET /api/v1/users/summaries` (list — one batched call for every
+distinct customer on the page, not N calls) using the order's
+`customer_user_id`, formatted as `"{firstName} {lastName}"`.
+
+**Fallback**: if that lookup fails for a given customer — Security
+unreachable, an unrecognized id (batch endpoint silently omits unknown
+ids; single endpoint 404s) — `customerName` falls back to that order's own
+`contactEmail` rather than failing the whole list/detail response. A
+merchant seeing an email instead of a name in this fallback case is a
+resilience trade-off, not a bug to chase — check whether Security itself
+is degraded before assuming this service is broken.
+
+See `API_REQUEST-orders-needs-from-security.md` for how this endpoint came
+to exist and `context.md` for the full implementation notes
+(`CustomerNameResolver`).
+
+---
+
 ## Data models
 
 ### `OrderSummary` (list row)
@@ -171,58 +320,73 @@ a new value here without a matching frontend update.**
 
 ## Data ownership — read this before wiring anything against this service
 
-**This service does not currently write orders and has no create/update
-endpoint.** It is a read model over `KONECTA-CHECKOUT-SERVICE`'s own
+This service is a read model over `KONECTA-CHECKOUT-SERVICE`'s own
 `orders`/`order_items` tables — same physical Postgres database
-(`konecta-checkout`), not a separate one. Checkout remains the sole writer.
+(`konecta-checkout`), not a separate one. **Checkout remains the sole
+writer of order *creation*** — there is no `POST` here, an order only
+shows up once Checkout has placed it.
 
-Practical implications for anyone integrating against this service:
+**As of the merchant status-write endpoint, this service also writes**:
+`PATCH /api/v1/merchant/shops/{shopId}/orders/{orderId}/status` updates
+`orders.status`/`updated_at` directly — the same row Checkout created, in
+the same shared table. This makes two services capable of writing to that
+table (Checkout on creation, Orders on merchant-triggered status changes).
+They write disjoint fields in practice (Checkout never revisits a row
+after creation; Orders only ever touches `status`/`updated_at` on an
+existing row) and there's no known conflict scenario today, but there is
+also no optimistic-locking guard against a hypothetical future write path
+colliding — flagging this rather than silently declaring it safe.
+`order_status_history` is a brand-new table this service created and owns
+outright; Checkout has no knowledge of it.
 
-- **An order only shows up here once Checkout has placed it.** There is no
-  independent order-creation path — don't expect a `POST` here.
+Other practical implications for anyone integrating against this service:
+
 - **The tracking fields (`storeLatitude/Longitude`, `courierLatitude/
   Longitude`, `etaMinutes`, `etaAt`) exist as columns this service added
   via its own migration, but nothing currently populates them** — no
   courier-tracking source exists on the platform yet (per AGENTS.md's
   collaborator table). Expect `null` for all of them on every order today.
   This is the expected, documented state — not a bug to report.
+- **`customerName` is a live cross-service lookup, not stored on the
+  order** — a Security outage degrades it to `contactEmail`, it doesn't
+  fail the request. See "customerName source" above.
 - **This arrangement is explicitly interim.** AGENTS.md's own instruction
   is not to leave two conflicting sources of truth long-term; the
   documented follow-up (see `context.md`) is for Checkout to eventually
   create orders through this service (via Feign) instead of owning the
   table directly, at which point this service gets its own independent
-  database. Any integration built against this service today should not
-  assume today's physical-database detail is permanent — only the HTTP
-  contract in this document is the stable interface.
+  database and becomes the sole writer for both creation and status.
+  Any integration built against this service today should not assume
+  today's physical-database detail is permanent — only the HTTP contract
+  in this document is the stable interface.
 
 ---
 
 ## What this service does *not* expose (known gaps for other services)
 
-- **No write endpoints at all.** No order creation, no status transitions,
-  no cancellation. `KONECTA-CHECKOUT-SERVICE` remains the only service that
-  can create an order in this phase; nothing can move an order out of
-  whatever status Checkout (or a future courier/merchant flow) set it to.
-- **No status-transition endpoint.** AGENTS.md's full state machine
-  (`canTransition(from, to, deliveryMode)`) is specified but not
-  implemented here — there's nothing to enforce yet since nothing writes.
-  A future merchant/staff/courier PATCH endpoint would need to be built
-  here, gated by role + store membership per AGENTS.md §7.
-- **No `order_status_history` persistence.** AGENTS.md §4 asks for a
-  status-history table (`order_id, from_status, to_status, actor_user_id,
-  created_at, note`) — not built, since nothing here produces transitions
-  to record yet.
+- **No order creation.** `KONECTA-CHECKOUT-SERVICE` remains the only
+  service that can create an order in this phase — no `POST` here.
+- **No cancellation-specific endpoint beyond the generic status PATCH.**
+  `CANCELLED` is reachable via the same `PATCH .../status` as any other
+  merchant transition — there's no dedicated "cancel" action, refund
+  handling, or customer-initiated cancellation endpoint.
+- **No courier-facing write endpoints.** The merchant transition table
+  covers `COURIER_ASSIGNED` and pickup/delivery `PICKED_UP`, but there's no
+  role/endpoint for an actual courier actor to drive `IN_TRANSIT` →
+  `DELIVERED` themselves — those two remain unreachable through any
+  endpoint on this service today (by design, until a courier flow exists).
 - **No stock-release on cancel.** AGENTS.md §8 asks for Stock reservation
-  release on `CANCELLED`/`REFUNDED` — not applicable yet; this service
-  doesn't observe or cause status changes.
+  release on `CANCELLED`/`REFUNDED` — `PATCH .../status` will happily set
+  `CANCELLED` without calling Stores-and-Stock to release anything.
 - **No `order.status_changed` Kafka event.** Listed as optional/"not
-  required to ship list/detail" in AGENTS.md §8 — not built.
-- **No merchant/staff/courier-facing views.** Every endpoint here is
-  customer-owner-scoped only (`customer_user_id` from the JWT). A "orders
-  for my shop" or courier-assignment view would need new, separately
-  role-gated endpoints — nothing like that exists today.
-- **No admin listing/search over all orders.** No `GET
-  /api/v1/admin/orders` equivalent to other services' admin list endpoints.
+  required to ship list/detail" in AGENTS.md §8 — not built. A status
+  change today is only visible by polling `GET`.
+- **No admin listing/search over all orders across every shop.** The
+  `ADMIN` role can hit any single shop's merchant endpoints (no ownership
+  check), but there's no cross-shop `GET /api/v1/admin/orders`.
+- **No optimistic locking on the status write** — see "Data ownership"
+  above for the (currently theoretical) concurrent-write risk this
+  introduces on a table Checkout also has a handle on.
 - **`courierLatitude`/`courierLongitude`/`etaMinutes`/`etaAt` are always
   `null` today** — see "Data ownership" above. Don't build a feature that
   assumes these are populated without first confirming a courier-tracking

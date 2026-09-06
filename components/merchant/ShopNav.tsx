@@ -37,6 +37,12 @@ export function ShopNav({
           Painel
         </Link>
         <Link
+          href={`${basePath}/${shopId}/orders`}
+          className="rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-surface hover:text-foreground"
+        >
+          Encomendas
+        </Link>
+        <Link
           href={`${basePath}/${shopId}/products`}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
         >

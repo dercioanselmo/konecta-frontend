@@ -761,6 +761,7 @@ Always send `Authorization: Bearer <access_token>`.
 | `REFUNDED` | Reembolsado |
 
 - Polling or refetch on focus for active orders; optional live updates later.
+- **Keep it compact** — per user feedback, the vertical space between steps was cut in half from the first version (`components/orders/OrderStatusRoadmap.tsx`'s connector/label spacing). Don't let it creep back up; a status list is a quick glance, not the page's main content.
 
 ## 4.2 Map
 
@@ -890,6 +891,40 @@ new pages repeating that mistake instead of reusing the shared component.
 | Merchant | `dercio.anselmo@zohomail.com` | `EmitaSpencer13` |
 | Merchant staff | `dercio.miguel@zohomail.com` | `Emit@Spencer13` |
 | Customer | `dercio.miguel@gmail.com` | `EmitaSpencer13` |
+
+---
+
+# 7b. Merchant/staff order management
+
+**"Encomendas" is the primary tab inside the store dashboard** (`ShopNav`,
+right after "Painel") — both `MERCHANT` (shop owner) and
+`MERCHANT_STAFF` get it; this is not an owner-only feature the way staff
+management is.
+
+- **List**: Activas / Histórico tabs, default Activas, newest first,
+  not user-facing sort. **One search box** — same single-box idea as the
+  customer hub, but scoped to the shop and additionally matching
+  **customer name and contact** (the customer hub has no such fields to
+  search). **Date interval is visible here** — unlike the customer hub,
+  where it was explicitly dropped; the merchant use case (reconciling a
+  day's orders) needs it.
+- **Detail**: reuse the same roadmap/map/product-list/money-summary
+  presentation built for the customer side. Add a **status-change
+  control**: the merchant/staff can move an order forward along the
+  established status flow (accept → prepare → ready →
+  picked-up/courier-assigned), plus cancel from any pre-ready state.
+  This is a real, new backend capability (today's Orders service is
+  read-only and customer-scoped only) — build the UI against the
+  proposed contract, degrade cleanly until it exists, and **never treat
+  the client-side next-action list as authoritative** — the backend
+  must validate every transition itself.
+- **Receipt**: the same printable-slip action as the customer side,
+  reachable from the merchant's own order detail (needs its own
+  shop-scoped fetch — the customer-owner-scoped receipt route won't
+  authorize a merchant viewing someone else's order).
+- Admin gets the same views for free via the existing
+  `basePath`/`listHref`/`listLabel` reuse pattern already used for
+  products/staff/settings.
 
 ---
 

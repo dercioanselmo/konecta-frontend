@@ -1,20 +1,19 @@
-import { redirect } from "next/navigation";
+import { getValidAccessToken } from "@/lib/auth/session";
 import { ordersApiFetch, OrdersServiceError } from "@/lib/orders/ordersApi";
-import { getValidAccessToken, getCurrentUser } from "@/lib/auth/session";
 import { OrderReceipt } from "@/components/orders/OrderReceipt";
-import type { Order } from "@/lib/checkout/types";
+import type { MerchantOrder } from "@/lib/orders/merchantTypes";
 
-export default async function OrderReceiptPage({ params }: PageProps<"/orders/[orderId]/receipt">) {
-  const { orderId } = await params;
-  const user = await getCurrentUser();
-  if (!user) redirect(`/login?next=/orders/${orderId}/receipt`);
-
+export default async function AdminShopOrderReceiptPage({
+  params,
+}: PageProps<"/admin/shops/[shopId]/orders/[orderId]/receipt">) {
+  const { shopId, orderId } = await params;
   const accessToken = await getValidAccessToken();
-  let order: Order | null = null;
+
+  let order: MerchantOrder | null = null;
   let loadError: string | null = null;
   if (accessToken) {
     try {
-      order = await ordersApiFetch<Order>(`/api/v1/orders/${orderId}`, {
+      order = await ordersApiFetch<MerchantOrder>(`/api/v1/merchant/shops/${shopId}/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
     } catch (err) {
@@ -30,5 +29,5 @@ export default async function OrderReceiptPage({ params }: PageProps<"/orders/[o
     );
   }
 
-  return <OrderReceipt order={order} backHref={`/orders/${orderId}`} />;
+  return <OrderReceipt order={order} backHref={`/admin/shops/${shopId}/orders/${orderId}`} />;
 }

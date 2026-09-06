@@ -62,9 +62,9 @@ export function OrderStatusRoadmap({ status, deliveryMode }: { status: OrderStat
               >
                 {done ? "✓" : i + 1}
               </div>
-              {!isLast ? <div className={`w-0.5 flex-1 ${done ? "bg-brand-green" : "bg-border"}`} style={{ minHeight: 24 }} /> : null}
+              {!isLast ? <div className={`w-0.5 flex-1 ${done ? "bg-brand-green" : "bg-border"}`} style={{ minHeight: 12 }} /> : null}
             </div>
-            <p className={`pb-6 text-sm ${active ? "font-semibold text-foreground" : done ? "text-foreground" : "text-muted"}`}>
+            <p className={`pb-3 text-sm ${active ? "font-semibold text-foreground" : done ? "text-foreground" : "text-muted"}`}>
               {labels[step] ?? ORDER_STATUS_LABELS[step]}
             </p>
           </div>

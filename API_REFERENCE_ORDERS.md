@@ -269,3 +269,21 @@ need for the frontend's 3-way fan-out entirely once it ships. The
 existing `storeName`/`productName`/`q` params can stay as-is for any
 other consumer that wants a narrower, single-field filter; `search`
 would just be an additional, alternative param.
+
+---
+
+## Follow-up ask (2026-09-06): priority bump on `storeLatitude`/`storeLongitude`
+
+User explicitly asked for the order-detail map to show **two pins —
+store and delivery location.** The frontend already renders both when
+the data is present (`components/orders/OrderMap.tsx`, built in Round
+28) — this is purely a data-availability gap, not a frontend one.
+Confirmed today: every real order tested has `storeLatitude`/
+`storeLongitude: null`, exactly as this doc already documented ("will
+stay null even for orders placed afterward until Checkout itself is
+updated to populate them at order-creation time — out of scope for this
+slice"). Re-raising this specifically as the next thing worth
+prioritizing, now that it's blocking a concretely-requested feature
+rather than a hypothetical one: Checkout needs to snapshot the store's
+lat/lng (from Stores-and-Stock, at checkout time) onto the order record
+it creates, the same way it already snapshots `storeName`/`storeLogoUrl`.

@@ -38,7 +38,10 @@ export function useCarts() {
     refreshInterval: 60_000,
   });
   return {
-    carts: data?.carts ?? [],
+    // A cart emptied by checkout or by removing every line can still
+    // come back as a zero-item row from the API — never surface those,
+    // per "only show stores that have carts for that client."
+    carts: (data?.carts ?? []).filter((c) => c.itemCount > 0),
     isLoading,
     error,
     refresh: mutate,

@@ -1020,4 +1020,50 @@ and scanning it completes the order in one step.
 - Orders **read API** = `KONECTA-ORDERS-SERVICE` when available.  
 
 
+# AGENTS.md — KONECTA Frontend (Courier onboarding)
+
+You are a **principal-level full-stack engineer and AI implementation agent** building the **KONECTA** Next.js frontend's **Courier (Entregador) onboarding and store-association** flow.
+
+`COURIER` already exists as a platform role (self-requestable at registration, subject to **admin** approval — that part is live via the Security service). This phase is everything *after* a user's role is actually `COURIER`: completing a courier-specific profile, and getting approved **per store**, independently of the platform-level role approval. **Job offers, accept/reject, earnings, and delivery-in-progress flows are explicitly out of scope** until specified separately.
+
+---
+
+# 1. What you are building
+
+1. **Courier profile completion** (`/courier`, `/courier/onboarding`): pin a base location (map, device-GPS pre-pinned per the location rule elsewhere in this file, Maputo-default fallback), choose one main transport (`A pé` | `Bicicleta` | `Mota` | `e-bike` | `Carro`), plate number + Carta de Condução required when Mota/Carro, upload identity documents (BI / Carta de Condução / Passaporte — more than one allowed, each with number/issue date/expiry date/local de emissão), and a profile photo (reuses the existing generic user-photo upload, no new endpoint).
+2. **Store association** (`/courier/stores`): browse every active shop city-wide (not filtered by category), closest-first, each showing distance from the courier's base; request association with one or more; a distance over **2 km** shows a confirmation prompt before the request goes through (frontend-only guidance, not a hard backend limit). The same distance figure is shown both in the browse list (before associating) and in the "As suas lojas" list (after).
+3. **Store-side approval** (`/merchant/shops/{shopId}/couriers`, new "Entregadores" tab in `ShopNav`, available to `MERCHANT` and `MERCHANT_STAFF`): a Pendentes/Ativos/Suspensos list, Aprovar/Rejeitar on a pending request, Suspender/Reativar on an existing one, and a detail view showing the courier's uploaded documents (so there's something concrete to confirm against, not just a name).
+
+---
+
+# 2. Backend status: entirely PROPOSED, nothing live yet
+
+See `API_REFERENCE_COURIER.md` for the full contract. Summary:
+
+- **New service**: `KONECTA-COURIER-SERVICE` (proposed port `8096`, env `COURIER_API_BASE_URL`) owns the courier profile, documents, and store-association rows — a new domain, not really Security's identity data or Stores-and-Stock's catalog data.
+- **One required change to an existing, live endpoint**: `KONECTA-STORES-AND-STOCK-SERVICE`'s `GET /api/v1/shops` requires `categoryId` today (confirmed live: `400 VALIDATION_ERROR` without it) — the courier store-picker needs it to become **optional**, returning all active shops (still with `distanceKm`) when omitted.
+- Frontend is fully built against this contract (`lib/courier/types.ts`, `lib/courier/client.ts`, `lib/courier/courierApi.ts`, BFF routes under `app/api/courier/**` and `app/api/merchant/shops/[shopId]/couriers/**`) — every call degrades cleanly (a Portuguese error banner, never a crash) until the real service exists, same methodology as every other proposed-then-built feature in this project (Cart, Checkout, Orders, QR).
+
+---
+
+# 3. Product rules
+
+| Rule | Detail |
+|---|---|
+| Distance source | `distanceKm` is always computed **server-side** (reuse the same haversine `GET /api/v1/shops?lat&lng` already uses) — the frontend never computes or fakes it. |
+| 2 km guidance | A frontend-only confirmation dialog, not a backend-enforced cap — the backend accepts an association request at any distance. |
+| Platform role vs. store approval | Two independent approvals: `requestedRole: COURIER` → admin, platform-wide, already live; store association → that store's `MERCHANT`/`MERCHANT_STAFF`, per shop, new. A courier can be platform-approved and still `PENDING_STORE_APPROVAL` everywhere. |
+| Plate + licence | `plateNumber` required (and shown) only for `MOTORCYCLE`/`CAR`; the UI nudges for a `CARTA_CONDUCAO` document when one of those is picked and none exists yet — but the backend must independently enforce this, never trust the client's view of "has a licence on file." |
+| Documents | Multiple allowed, including more than one of the same type (e.g. an expired BI kept alongside its renewal) — no uniqueness constraint. |
+| Never trust client-only approval | Every status transition (approve/reject/suspend/reactivate) is validated server-side, same discipline as every other status-change endpoint in this project. |
+
+---
+
+# 4. When in doubt
+
+- This slice ends at "courier profile complete + associated with at least one approved store." Nothing about receiving or working an order.
+- Report backend endpoint needs the same way every other feature in this project has (see `API_REFERENCE_COURIER.md`) — don't invent undocumented endpoints.
+- UI always Portuguese; reuse `LocationPicker`, `ConfirmDialog`, `Badge`, and the existing photo-upload pattern rather than inventing new primitives.
+
+
 <!-- END:nextjs-agent-rules -->

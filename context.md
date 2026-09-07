@@ -891,6 +891,73 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 49: Courier onboarding + store association built end-to-end (frontend), backend entirely PROPOSED (2026-09-07)
+
+- **New feature area**, biggest single addition so far: courier profile
+  completion (base-location pin, transport type, plate + licence
+  nudge, multi-document upload, profile photo), store-association
+  browsing/requesting with distance shown before and after (2 km
+  confirmation prompt, frontend-only), and store-side approval
+  (Pendentes/Ativos/Suspensos, Aprovar/Rejeitar/Suspender/Reativar,
+  documents visible on a detail view). Explicitly stops short of job
+  offers / accept-reject / delivery-in-progress — a separate slice per
+  the request.
+- **Nothing on the backend exists yet** — this is fully built against a
+  proposed contract, same methodology as every other feature in this
+  project before its backend caught up (Cart/Checkout/Orders/QR).
+  Wrote `API_REFERENCE_COURIER.md`: a whole new proposed
+  `KONECTA-COURIER-SERVICE` (profile, documents, per-store
+  association/approval) plus one required change to an already-live
+  endpoint — `GET /api/v1/shops` on Stores-and-Stock needs `categoryId`
+  to become optional (confirmed live: `400 VALIDATION_ERROR` without it
+  today) so the courier's store-picker can browse every shop city-wide,
+  not one category at a time.
+- New `lib/courier/` module: `types.ts`, `client.ts` (browser-side,
+  mirrors `lib/merchant/client.ts`'s pattern), `courierApi.ts`
+  (server-only, mirrors `ordersApi.ts`/`storesApi.ts` — throws until
+  `COURIER_API_BASE_URL` is set and a real service answers). New BFF
+  routes under `app/api/courier/**` (profile, documents + presign,
+  store associations) and `app/api/merchant/shops/[shopId]/couriers/**`
+  (list, detail-with-documents, status, reject), plus
+  `app/api/shops/nearby` proxying Stores' existing endpoint without
+  `categoryId`.
+- New UI: `components/courier/CourierShell.tsx` (header + Perfil/Lojas
+  tabs, replaces the old bare `RoleLanding` placeholder for `COURIER`),
+  `app/courier/onboarding/CourierOnboardingForm.tsx` (reuses
+  `LocationPicker` + the device-GPS pre-pin hook from the location
+  round, reuses the existing generic user-photo upload, reuses
+  `uploadAndConfirm` for document files), `app/courier/stores/CourierStoresView.tsx`
+  (reuses `ConfirmDialog` for the >2km prompt), and the merchant-side
+  `CouriersList.tsx`/`CourierDetailView.tsx` (reuse `Badge`, mirror
+  `StaffList.tsx`'s tab/action pattern). New "Entregadores" tab added to
+  `ShopNav` (visible to `MERCHANT` and `MERCHANT_STAFF`, same as every
+  other tab) and reused for Admin via the established
+  `basePath`/`listHref`/`listLabel` pattern.
+- Updated `AGENTS.md` with a new Courier onboarding section (explicitly
+  authorized) documenting scope, the proposed backend, and the product
+  rules (distance always server-computed, 2 km is frontend guidance not
+  a backend cap, plate/licence nudge is client-side only — backend must
+  independently enforce it, platform role approval vs. per-store
+  approval are two separate things).
+- **Live-verified end-to-end (UI only, no backend to complete the loop)**:
+  temporarily promoted a real test account
+  (`dercio.miguel@gmail.com`, normally `CUSTOMER`) to `COURIER` via the
+  already-live `PATCH /api/v1/admin/users/{id}/role` endpoint, logged in
+  as it, screenshotted `/courier` (shell + graceful "profile
+  unavailable" banner), `/courier/onboarding` (photo/base-map/transport/
+  documents form, all rendering correctly — confirmed the base map
+  pre-pins Maputo since this headless browser has no GPS), clicking
+  "Mota" correctly reveals the plate-number field + the "also upload
+  Carta de Condução" nudge, and `/courier/stores` (graceful "conclude
+  your profile first" redirect prompt, since no courier profile exists
+  yet). **Reverted the test account back to `CUSTOMER` immediately
+  after** — it's used throughout this project's conversation history
+  for customer-side testing and must not stay changed.
+- The merchant-side "Entregadores" tab also live-verified: renders
+  correctly in `ShopNav`, degrades cleanly (Portuguese error banner, no
+  crash) with no backend behind it.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 48: device GPS pre-pins every map, including a new one on registration (2026-09-07)
 
 - Per explicit ask: every map used to set coordinates — registration,

@@ -54,6 +54,12 @@ export function ShopNav({
         >
           Horário
         </Link>
+        <Link
+          href={`${basePath}/${shopId}/couriers`}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground"
+        >
+          Entregadores
+        </Link>
         {!hideStaff ? (
           <Link
             href={`${basePath}/${shopId}/staff`}

@@ -1,7 +1,18 @@
 import type { DeliveryMode, OrderStatus } from "@/lib/checkout/types";
 
 interface StatusAction {
-  status: OrderStatus;
+  /**
+   * Sequence of statuses to `PATCH .../status` through, in order, ending
+   * at the status this action reaches. More than one element means the
+   * frontend chains multiple calls behind a single click — the backend
+   * only allows one-step-at-a-time transitions (see
+   * `API_REFERENCE_MERCHANT_ORDERS.md`), but AGENTS.md's simplified 3/5-
+   * step roadmap treats "Pagamento confirmado" as one stage regardless
+   * of which of `STORE_CONFIRMED`/`PREPARING` the order is really sitting
+   * at, so a single "Marcar como pronto para levantamento" button walks
+   * through whichever of those steps are still needed.
+   */
+  path: OrderStatus[];
   label: string;
   /** Omit to allow for both delivery modes. */
   deliveryModes?: DeliveryMode[];
@@ -10,36 +21,34 @@ interface StatusAction {
 }
 
 /**
- * Merchant/staff-facing next-step actions per current status — this is
- * a client-side hint for which buttons to show, confirmed to match
- * KONECTA-ORDERS-SERVICE's own authoritative table exactly (see
- * API_REFERENCE_konecta_order.md's `PATCH .../status`) but still not the
- * source of truth: the server validates every transition independently
- * and rejects anything else with `409 INVALID_TRANSITION` regardless of
- * what this config renders — confirmed live.
+ * Merchant/staff-facing next-step actions per current status — a
+ * client-side hint for which buttons to show, not the source of truth:
+ * the server validates every individual transition in `path`
+ * independently and rejects anything invalid with `409
+ * INVALID_TRANSITION` regardless of what this config renders.
  */
 export const MERCHANT_STATUS_ACTIONS: Partial<Record<OrderStatus, StatusAction[]>> = {
   PAID: [
-    { status: "STORE_CONFIRMED", label: "Aceitar encomenda" },
-    { status: "CANCELLED", label: "Cancelar", destructive: true },
+    { path: ["STORE_CONFIRMED", "PREPARING", "READY_FOR_PICKUP"], label: "Marcar como pronto para levantamento" },
+    { path: ["CANCELLED"], label: "Cancelar", destructive: true },
   ],
   PENDING_STORE_OPEN: [
-    { status: "STORE_CONFIRMED", label: "Aceitar encomenda" },
-    { status: "CANCELLED", label: "Cancelar", destructive: true },
+    { path: ["STORE_CONFIRMED", "PREPARING", "READY_FOR_PICKUP"], label: "Marcar como pronto para levantamento" },
+    { path: ["CANCELLED"], label: "Cancelar", destructive: true },
   ],
   STORE_CONFIRMED: [
-    { status: "PREPARING", label: "Iniciar preparação" },
-    { status: "CANCELLED", label: "Cancelar", destructive: true },
+    { path: ["PREPARING", "READY_FOR_PICKUP"], label: "Marcar como pronto para levantamento" },
+    { path: ["CANCELLED"], label: "Cancelar", destructive: true },
   ],
   PREPARING: [
-    { status: "READY_FOR_PICKUP", label: "Marcar como pronto" },
-    { status: "CANCELLED", label: "Cancelar", destructive: true },
+    { path: ["READY_FOR_PICKUP"], label: "Marcar como pronto para levantamento" },
+    { path: ["CANCELLED"], label: "Cancelar", destructive: true },
   ],
   READY_FOR_PICKUP: [
-    { status: "PICKED_UP", label: "Marcar como levantado pelo cliente", deliveryModes: ["PICKUP"] },
-    { status: "COURIER_ASSIGNED", label: "Atribuir estafeta", deliveryModes: ["DELIVERY"] },
+    { path: ["PICKED_UP"], label: "Marcar como levantado pelo cliente", deliveryModes: ["PICKUP"] },
+    { path: ["COURIER_ASSIGNED"], label: "Atribuir estafeta", deliveryModes: ["DELIVERY"] },
   ],
-  COURIER_ASSIGNED: [{ status: "PICKED_UP", label: "Marcar como recolhido pelo estafeta", deliveryModes: ["DELIVERY"] }],
+  COURIER_ASSIGNED: [{ path: ["PICKED_UP"], label: "Marcar como recolhido pelo estafeta", deliveryModes: ["DELIVERY"] }],
 };
 
 export function availableActions(status: OrderStatus, deliveryMode: DeliveryMode): StatusAction[] {

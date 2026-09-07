@@ -14,7 +14,7 @@ import { availableActions } from "@/lib/orders/statusTransitions";
 import { ClientApiError } from "@/lib/auth/client";
 import { isTerminalOrderStatus } from "@/lib/checkout/orderStatus";
 import type { MerchantOrder } from "@/lib/orders/merchantTypes";
-import type { Order } from "@/lib/checkout/types";
+import type { Order, OrderStatus } from "@/lib/checkout/types";
 
 interface MerchantOrderDetailViewProps {
   shopId: string;
@@ -45,7 +45,7 @@ export function MerchantOrderDetailView({
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<MerchantOrder["status"] | null>(null);
+  const [pendingAction, setPendingAction] = useState<OrderStatus[] | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -63,16 +63,20 @@ export function MerchantOrderDetailView({
     queueMicrotask(() => { load(); });
   }, [load]);
 
-  const changeStatus = async (status: MerchantOrder["status"], destructive?: boolean) => {
-    if (destructive) {
-      setPendingAction(status);
-      return;
-    }
+  const runTransition = async (path: OrderStatus[]) => {
     setActionError(null);
-    setUpdating(status);
+    setUpdating(path[path.length - 1]);
     try {
-      const updated = await updateOrderStatus(shopId, orderId, status);
-      setOrder(updated);
+      // Chained one call per step — the backend only allows one-step-at-a-time
+      // transitions, so a "Marcar como pronto para levantamento" click walks
+      // through STORE_CONFIRMED/PREPARING behind the scenes when needed,
+      // per AGENTS.md's simplified roadmap. Each successful step is reflected
+      // immediately, so a mid-chain failure still leaves the order showing
+      // its real, furthest-reached status rather than the original one.
+      for (const step of path) {
+        const updated = await updateOrderStatus(shopId, orderId, step);
+        setOrder(updated);
+      }
     } catch (err) {
       setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atualizar o estado da encomenda.");
     } finally {
@@ -80,20 +84,19 @@ export function MerchantOrderDetailView({
     }
   };
 
-  const confirmPendingAction = async () => {
-    const status = pendingAction;
-    if (!status) return;
-    setPendingAction(null);
-    setActionError(null);
-    setUpdating(status);
-    try {
-      const updated = await updateOrderStatus(shopId, orderId, status);
-      setOrder(updated);
-    } catch (err) {
-      setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atualizar o estado da encomenda.");
-    } finally {
-      setUpdating(null);
+  const changeStatus = (path: OrderStatus[], destructive?: boolean) => {
+    if (destructive) {
+      setPendingAction(path);
+      return;
     }
+    void runTransition(path);
+  };
+
+  const confirmPendingAction = async () => {
+    const path = pendingAction;
+    if (!path) return;
+    setPendingAction(null);
+    await runTransition(path);
   };
 
   return (
@@ -155,13 +158,13 @@ export function MerchantOrderDetailView({
               <div className="flex flex-wrap gap-2">
                 {availableActions(order.status, order.deliveryMode).map((action) => (
                   <Button
-                    key={action.status}
+                    key={action.label}
                     type="button"
                     variant={action.destructive ? "secondary" : "primary"}
                     className={`h-10 w-auto px-4 text-sm ${action.destructive ? "text-red-600" : ""}`}
-                    loading={updating === action.status}
+                    loading={updating === action.path[action.path.length - 1]}
                     disabled={updating != null}
-                    onClick={() => changeStatus(action.status, action.destructive)}
+                    onClick={() => changeStatus(action.path, action.destructive)}
                   >
                     {action.label}
                   </Button>

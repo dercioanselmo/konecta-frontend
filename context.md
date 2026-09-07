@@ -891,6 +891,33 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 46: "Alterar estado" collapsed to match the new 3/5-step roadmap (2026-09-07)
+
+- Round 45 simplified the *display* roadmap but left the merchant's
+  "Alterar estado" buttons on the old granular flow (Aceitar encomenda →
+  Iniciar preparação → Marcar como pronto, three separate clicks) — this
+  round collapses those into what the simplified roadmap implies: one
+  "Marcar como pronto para levantamento" button from any of
+  `PAID`/`PENDING_STORE_OPEN`/`STORE_CONFIRMED`/`PREPARING`.
+- **Still no backend change** — `PATCH .../status` only ever allows one
+  step at a time (confirmed live, `409 INVALID_TRANSITION` otherwise), so
+  `lib/orders/statusTransitions.ts`'s `StatusAction` now carries a
+  `path: OrderStatus[]` (the full chain to walk) instead of a single
+  `status`, and `MerchantOrderDetailView.tsx`'s new `runTransition`
+  calls `updateOrderStatus` once per step in sequence behind that one
+  click, committing `setOrder` after each successful step (so a
+  mid-chain failure still shows the real furthest-reached status, not a
+  stale one). `READY_FOR_PICKUP`'s two next actions (Marcar como
+  levantado / Atribuir estafeta) are single-step as before — unchanged,
+  since those already correspond to their own distinct roadmap step.
+- **Live-verified**: placed a fresh `PAID` order, clicked "Marcar como
+  pronto para levantamento" once, confirmed via a direct backend read
+  it landed on `READY_FOR_PICKUP` (i.e. all three chained PATCH calls
+  actually went through, not just the first) — screenshotted before
+  (one button) and after (roadmap step 2 lit, single next action
+  "Marcar como levantado pelo cliente" shown).
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 45: order status roadmap simplified to 3/5 steps per delivery mode (2026-09-07)
 
 - Per explicit ask ("There are too much status") + explicit authorization

@@ -846,3 +846,73 @@ overridden: staff should be visible/manageable by Admin too, matching
   this round was pure verification once the backend caught up.
 - **No remaining backend gaps on this feature.**
 - `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).
+
+## Round 40: pickup/delivery QR scan UX hardened — manual entry, order-detail entry point, mismatch handling (2026-09-07)
+
+- **New shared component `components/merchant/PickupQrScanner.tsx`**:
+  camera scan (reuses `QrScanner.tsx`) **plus a manual code text input +
+  Confirmar button, always rendered** — not gated behind camera failure,
+  so staff can validate pickups even when the camera is denied/
+  unavailable. Both paths call the same `completeOrderByQr`.
+- **`expectedOrderId` prop**: when the scan page is opened from a
+  specific order's detail view (`?expectedOrderId=`), a successful scan
+  that resolves to a *different* order is shown as a distinct amber
+  "Código de outra encomenda" warning instead of a plain green success —
+  still completes the transition (the backend already validated shop
+  ownership/status), just flags that the wrong customer's code was read.
+  Deliberately **not** a new backend param — the resolve-and-transition
+  already happens atomically server-side per `API_REFERENCE_ORDER_QR.md`,
+  so the match check is a client-side UX nudge only, done by comparing
+  the response's `orderId`, never a substitute for server-side
+  authorization (already enforced: shop ownership + non-terminal/
+  non-cancelled status).
+- **New "Ler QR code" button on `MerchantOrderDetailView.tsx`** (green,
+  next to Recibo), visible only while the order is non-terminal — links
+  to `.../orders/scan?expectedOrderId={orderId}`. Extracted the
+  terminal-status check (previously duplicated inline in the customer
+  `OrderDetailView.tsx`) into a shared `lib/checkout/orderStatus.ts`'s
+  `isTerminalOrderStatus(status, deliveryMode)`, used by both views now.
+- `QrScanner.tsx` gained a small status caption ("A pedir permissão da
+  câmara…" / "A procurar código…" / "A validar…") so the camera state is
+  never just a bare video feed with no feedback.
+- **Live-verified end-to-end**, no mocks, as both `MERCHANT` and
+  `MERCHANT_STAFF`: placed two real orders, scanned one via manual entry
+  from its own order-detail page (matched → green success → status
+  flipped `PAID` → `PICKED_UP`, confirmed by reopening the order),
+  scanned the other with a mismatched `expectedOrderId` (amber warning
+  with the real resolved order's id/name), submitted a bogus code (red
+  "Pedido não encontrado" — the real `404 ORDER_NOT_FOUND`), and
+  confirmed a `MERCHANT_STAFF` account scanning a shop it doesn't belong
+  to gets a clean "Acesso negado" (`403 ACCESS_DENIED`) rather than a
+  crash — server-side shop-scoping already works, nothing new needed
+  there.
+- No new backend endpoints needed — `complete-by-qr` already covers
+  everything; this round was frontend UX work on top of an
+  already-complete backend contract.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 41: "Ler QR code" made a persistent floating action across every shop page (2026-09-07)
+
+- Per explicit ask: the scan entry point must be reachable from **every**
+  MERCHANT/MERCHANT_STAFF page for a shop, not just the Encomendas tab —
+  "an activity that does not require navigating any menu."
+- New `app/merchant/shops/[shopId]/layout.tsx` — a layout scoped to the
+  whole `/merchant/shops/[shopId]/**` subtree (Painel, Encomendas + order
+  detail/scan/receipt, Produtos + product detail/new, Horário,
+  Funcionários + staff detail/new, Definições, Localização — every page
+  under a shop, including the two product pages that don't even render
+  `ShopNav`). Renders `children` plus a new
+  `components/merchant/ScanQrFab.tsx`.
+- `ScanQrFab`: a fixed bottom-right floating button (icon-only on narrow
+  screens, icon+label from `sm:` up) linking to that shop's
+  `.../orders/scan` — one tap from anywhere, no menu. Hides itself via
+  `usePathname()` when already on the scan page (no point floating a
+  button over the scanner it links to).
+- **Live-verified**: screenshotted the FAB present on the shop dashboard
+  and the Produtos list (pages that previously had no path to scanning
+  at all without going through Encomendas first), and confirmed it
+  correctly disappears on the scan page itself.
+- Left the existing inline "Ler QR code" button on the Encomendas list
+  and the order-detail one (Round 40) in place — the FAB is additive,
+  not a replacement; both remain useful in their own context.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.

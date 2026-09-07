@@ -15,6 +15,7 @@ export function QrScanner({ onDecode, paused }: { onDecode: (text: string) => vo
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastValueRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"requesting" | "scanning">("requesting");
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -27,9 +28,10 @@ export function QrScanner({ onDecode, paused }: { onDecode: (text: string) => vo
         if (!active || !videoRef.current) return;
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        if (active) setStatus("scanning");
         tick();
       } catch {
-        if (active) setError("Não foi possível aceder à câmara. Verifique as permissões do navegador.");
+        if (active) setError("Não foi possível aceder à câmara. Verifique as permissões do navegador ou use o código manual abaixo.");
       }
     };
 
@@ -77,6 +79,11 @@ export function QrScanner({ onDecode, paused }: { onDecode: (text: string) => vo
       <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
       <canvas ref={canvasRef} className="hidden" />
       <div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white/70" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+        <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
+          {status === "requesting" ? "A pedir permissão da câmara…" : paused ? "A validar…" : "A procurar código…"}
+        </span>
+      </div>
     </div>
   );
 }

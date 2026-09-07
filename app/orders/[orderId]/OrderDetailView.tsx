@@ -8,15 +8,11 @@ import { OrderMap } from "@/components/orders/OrderMap";
 import { OrderQrCode } from "@/components/orders/OrderQrCode";
 import { OrderMoneySummary } from "@/components/orders/OrderMoneySummary";
 import { getOrder } from "@/lib/checkout/client";
+import { isTerminalOrderStatus } from "@/lib/checkout/orderStatus";
 import type { Order } from "@/lib/checkout/types";
 
-const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "REFUNDED"]);
-
 function isTerminal(order: Order): boolean {
-  if (TERMINAL_STATUSES.has(order.status)) return true;
-  // A pickup order is "done" once collected — it doesn't continue to
-  // IN_TRANSIT/DELIVERED the way a delivery order does.
-  return order.status === "PICKED_UP" && order.deliveryMode === "PICKUP";
+  return isTerminalOrderStatus(order.status, order.deliveryMode);
 }
 
 const PAYMENT_LABELS: Record<Order["paymentMethod"], string> = {

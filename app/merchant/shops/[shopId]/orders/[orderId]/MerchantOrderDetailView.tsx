@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getMerchantOrder, updateOrderStatus } from "@/lib/orders/merchantClient";
 import { availableActions } from "@/lib/orders/statusTransitions";
 import { ClientApiError } from "@/lib/auth/client";
+import { isTerminalOrderStatus } from "@/lib/checkout/orderStatus";
 import type { MerchantOrder } from "@/lib/orders/merchantTypes";
 import type { Order } from "@/lib/checkout/types";
 
@@ -118,16 +119,29 @@ export function MerchantOrderDetailView({
                 <OrderStatusBadge status={order.status} since={order.statusUpdatedAt ?? order.createdAt} deliveryMode={order.deliveryMode} />
               </div>
             </div>
-            <Link
-              href={`${basePath}/${shopId}/orders/${orderId}/receipt`}
-              className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
-            >
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2L6 20V3Z" />
-                <path strokeLinecap="round" d="M9 8h6M9 12h6" />
-              </svg>
-              Recibo
-            </Link>
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              {!isTerminalOrderStatus(order.status, order.deliveryMode) ? (
+                <Link
+                  href={`${basePath}/${shopId}/orders/scan?expectedOrderId=${orderId}`}
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-full bg-brand-green px-4 text-xs font-semibold text-white transition-colors hover:bg-emerald-600"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3m12-4v3a1 1 0 0 1-1 1h-3M4 12h16" />
+                  </svg>
+                  Ler QR code
+                </Link>
+              ) : null}
+              <Link
+                href={`${basePath}/${shopId}/orders/${orderId}/receipt`}
+                className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-border px-4 text-xs font-semibold text-foreground transition-colors hover:bg-surface-hover"
+              >
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2L6 20V3Z" />
+                  <path strokeLinecap="round" d="M9 8h6M9 12h6" />
+                </svg>
+                Recibo
+              </Link>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-border bg-surface p-4">

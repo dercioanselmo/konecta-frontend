@@ -257,12 +257,52 @@ Use this as the checklist for UX implementation order (from BRD). Details of fie
 
 # 9. Order status UI (align with backend states)
 
-Display a clear timeline. Support at least:
+**The customer/merchant-facing timeline shows only a simplified set of
+steps per delivery mode — not the full backend enum.** Too many visible
+steps reads as noise; the backend keeps its finer-grained statuses for
+internal tracking (e.g. the merchant's own accept/prepare workflow), but
+the roadmap/timeline only ever renders these:
 
-`CREATED` → `PAID` → optional `PENDING_STORE_OPEN` → `STORE_CONFIRMED` → `PREPARING` → `READY_FOR_PICKUP` → (`COURIER_ASSIGNED` → `PICKED_UP` → `IN_TRANSIT`) → `DELIVERED`  
-Also `CANCELLED` / `REFUNDED`.
+**Delivery (5 steps):**
+1. Pagamento confirmado
+2. Pronto para levantamento — **at this step, the customer or the
+   MERCHANT/MERCHANT_STAFF can change the delivery mode** (switch
+   between pickup at the store and delivery to the customer's address)
+3. Entregador atribuído
+4. A caminho
+5. Entregue
+
+**Pickup (3 steps):**
+1. Pagamento confirmado
+2. Pronto para levantamento — same mode-change rule as delivery step 2
+3. Entregue
+
+Backend statuses **not shown as their own step**, folded into the
+nearest one above instead (still real enum values — this is a display
+simplification, not an enum change): `CREATED`/`PENDING_STORE_OPEN`/
+`STORE_CONFIRMED`/`PREPARING` all fold into step 1 (still "Pagamento
+confirmado" until the order reaches `READY_FOR_PICKUP`); for delivery,
+`PICKED_UP` (courier collected from the store) folds into step 3
+("Entregador atribuído") since there's no separate visible dot for it;
+for pickup, `PICKED_UP`/`COURIER_ASSIGNED`/`IN_TRANSIT`/`DELIVERED` all
+fold into the final "Entregue" step (pickup orders shouldn't reach
+those in practice, but the mapping is defensive rather than a crash if
+one does). `CANCELLED`/`REFUNDED` render as their own distinct banner,
+not a step in the timeline. See `components/orders/OrderStatusRoadmap.tsx`
+for the exact grouping.
 
 `PENDING_STORE_OPEN` plays **no part** in the current flow — per rule 5 in §5, no order is ever created while a store is closed, so this status should never appear on a new order. Leave it in the enum/label map only in case it's returned for some unrelated reason; don't design any UI around expecting it.
+
+**Change-delivery-mode-at-"Pronto para levantamento" is a documented
+rule, not yet built** — no endpoint or UI exists for it yet. When it's
+picked up: both the customer's own order view and the merchant/staff
+order detail need a control (visible only while status is
+`READY_FOR_PICKUP`) to flip `deliveryMode` and, when switching to
+delivery, collect/edit the delivery address — needs a real backend
+capability (today's Orders/Checkout services have no mutate-in-place
+endpoint for `deliveryMode`/`deliveryAddress` post-creation). Report the
+endpoint need the same way every other gap in this project has been
+handled — don't invent a client-only toggle that doesn't call a real API.
 
 Pickup path skips courier states. Copy in Portuguese, human-readable (not raw enum-only).
 
@@ -741,25 +781,15 @@ Always send `Authorization: Bearer <access_token>`.
 
 - Present status as a **creative vertical or horizontal roadmap** (timeline with steps, icons, current step highlighted, completed steps checked, future steps muted).
 - Labels in **Portuguese**, human-friendly (not raw enums only).
-- Reflect delivery mode:
-  - **Pickup:** do not emphasize courier / em trânsito / entregue em casa; end at **Levantado**.
-  - **Delivery:** include estafeta, em trânsito, entregue.
-- Map status from API enums, e.g.:
-
-| API (example) | UI (PT) |
-|---------------|---------|
-| `PAID` | Pagamento confirmado |
-| `PENDING_STORE_OPEN` | À espera da abertura da loja |
-| `STORE_CONFIRMED` | Loja aceitou |
-| `PREPARING` | A preparar |
-| `READY_FOR_PICKUP` | Pronto para levantar / recolher |
-| `COURIER_ASSIGNED` | Estafeta atribuído |
-| `PICKED_UP` | Recolhido / saiu da loja |
-| `IN_TRANSIT` | A caminho |
-| `DELIVERED` | Entregue |
-| `CANCELLED` | Cancelado |
-| `REFUNDED` | Reembolsado |
-
+- **Simplified step set — see the root AGENTS.md's §9 for the current
+  canonical rule** (superseding the raw 8-status enum walk this section
+  used to list): 5 steps for delivery (Pagamento confirmado → Pronto
+  para levantamento → Entregador atribuído → A caminho → Entregue), 3
+  for pickup (Pagamento confirmado → Pronto para levantamento →
+  Entregue). Several raw backend statuses fold into the nearest step
+  rather than getting their own dot — §9 has the exact grouping and the
+  new "change delivery mode at Pronto para levantamento" rule.
+- `CANCELLED`/`REFUNDED` render as their own banner, not a roadmap step.
 - Polling or refetch on focus for active orders; optional live updates later.
 - **Keep it compact** — per user feedback, the vertical space between steps was cut in half from the first version (`components/orders/OrderStatusRoadmap.tsx`'s connector/label spacing). Don't let it creep back up; a status list is a quick glance, not the page's main content.
 

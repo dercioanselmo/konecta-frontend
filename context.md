@@ -891,6 +891,51 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 45: order status roadmap simplified to 3/5 steps per delivery mode (2026-09-07)
+
+- Per explicit ask ("There are too much status") + explicit authorization
+  to edit `AGENTS.md`: the customer/merchant-facing status **roadmap**
+  now shows only 3 steps for pickup (Pagamento confirmado → Pronto para
+  levantamento → Entregue) and 5 for delivery (Pagamento confirmado →
+  Pronto para levantamento → Entregador atribuído → A caminho →
+  Entregue) — down from the previous 5/8-step walk through every raw
+  backend status.
+- **This is a display simplification, not a backend/enum change** — the
+  real `OrderStatus` values (`STORE_CONFIRMED`, `PREPARING`, `PICKED_UP`,
+  etc.) are untouched and still what the API sends/receives; they're
+  just folded into the nearest visible step in
+  `components/orders/OrderStatusRoadmap.tsx` (rewritten around a
+  `{ label, statuses[] }` group table per mode instead of a flat step
+  array) rather than each getting its own dot. `CANCELLED` never
+  regresses `READY_FOR_PICKUP`'s spec — for delivery, `PICKED_UP` folds
+  into "Entregador atribuído" (no distinct dot for "collected from
+  store, not yet en route"); for pickup, anything from `PICKED_UP`
+  onward folds into the final "Entregue" (defensive — a pickup order
+  shouldn't reach `COURIER_ASSIGNED`/`IN_TRANSIT` in practice).
+- Updated `AGENTS.md` (authorized): root §9 now states the 3/5-step
+  rule directly (superseding the old raw enum walk) plus documents a
+  **new, not-yet-built rule**: at "Pronto para levantamento", the
+  customer or MERCHANT/MERCHANT_STAFF should be able to change the
+  order's delivery mode (pickup ↔ delivery-to-address) — flagged
+  explicitly as needing a real backend mutate-in-place endpoint before
+  any UI is built for it, not a client-only toggle. The Orders section's
+  §4.1 now points to §9 instead of duplicating the (now-outdated) raw
+  status table.
+- **Live-verified** against real orders: a delivery-mode order
+  (`210214b0`) rendered the 5-step roadmap correctly at step 1; a
+  pickup-mode order (`0655854e`) rendered the 3-step roadmap correctly.
+  `MerchantOrderDetailView.tsx` gets this for free — same shared
+  `OrderStatusRoadmap` component, no separate change needed there.
+- `ORDER_STATUS_LABELS` (flat, mode-agnostic map used by badges/receipts
+  elsewhere) is untouched — only the roadmap's own step labels changed;
+  a badge showing raw "Recolhido" for a `PICKED_UP` order elsewhere in
+  the app is unaffected by this round, by design (this was scoped to
+  the roadmap specifically, not every status surface).
+- **Not built this round**: the actual delivery-mode-change control —
+  flagged as a rule in `AGENTS.md` for whenever that's picked up, needs
+  its own backend contract first.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 44: reverted the pending-confirm scan UI; final confirmation moved back to the order detail page instead (2026-09-07)
 
 - **Round 43's change (a staged "read code → tap Confirmar" step inside

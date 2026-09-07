@@ -41,6 +41,13 @@ export interface OrderItem {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /**
+   * The product's IVA rate (%) at the time of purchase, carried onto the
+   * order line so IVA can be summed per-item instead of assumed flat —
+   * see `lib/checkout/moneyBreakdown.ts`. `null`/absent on orders placed
+   * before per-product IVA existed; treated as 17% there.
+   */
+  ivaRate?: number | null;
 }
 
 /**

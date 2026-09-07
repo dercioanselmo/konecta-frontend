@@ -79,6 +79,7 @@ export function ProductDetailView({
         description: p.description,
         subcategoryId: p.subcategoryId ?? "",
         price: p.price,
+        ivaRate: p.ivaRate ?? 17,
         stockQuantity: p.stockQuantity,
         lowStockThreshold: p.lowStockThreshold ?? undefined,
         active: p.active,
@@ -109,6 +110,7 @@ export function ProductDetailView({
         description: values.description,
         subcategoryId: values.subcategoryId || undefined,
         price: values.price,
+        ivaRate: values.ivaRate,
         stockQuantity: values.stockQuantity,
         lowStockThreshold: values.lowStockThreshold,
         active: values.active,
@@ -363,6 +365,15 @@ export function ProductDetailView({
           min="0"
           error={errors.price?.message}
           {...register("price", { valueAsNumber: true })}
+        />
+        <Input
+          label="Taxa de IVA (%)"
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          error={errors.ivaRate?.message}
+          {...register("ivaRate", { valueAsNumber: true })}
         />
         <Input
           label="Quantidade em stock"

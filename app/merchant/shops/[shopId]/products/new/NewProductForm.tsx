@@ -32,7 +32,7 @@ export function NewProductForm({
     formState: { errors, isSubmitting },
   } = useForm<CreateProductFormValues>({
     resolver: zodResolver(createProductSchema),
-    defaultValues: { active: true },
+    defaultValues: { active: true, ivaRate: 17 },
   });
 
   useEffect(() => {
@@ -52,6 +52,7 @@ export function NewProductForm({
         description: values.description,
         subcategoryId: values.subcategoryId || undefined,
         price: values.price,
+        ivaRate: values.ivaRate,
         stockQuantity: values.stockQuantity,
         lowStockThreshold: values.lowStockThreshold,
         active: values.active,
@@ -115,6 +116,15 @@ export function NewProductForm({
           min="0"
           error={errors.price?.message}
           {...register("price", { valueAsNumber: true })}
+        />
+        <Input
+          label="Taxa de IVA (%)"
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          error={errors.ivaRate?.message}
+          {...register("ivaRate", { valueAsNumber: true })}
         />
         <Input
           label="Quantidade em stock"

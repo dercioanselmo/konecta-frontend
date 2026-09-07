@@ -220,6 +220,13 @@ export interface Product {
   categoryId: string | null;
   categoryName: string | null;
   price: number;
+  /**
+   * IVA rate for this product, as a percentage (e.g. 17). IVA in
+   * Mozambique varies by product category, so this is set per product
+   * rather than assumed flat — defaults to 17 in the UI when the
+   * backend hasn't started returning it yet on older products.
+   */
+  ivaRate?: number | null;
   stockQuantity: number;
   lowStockThreshold: number;
   active: boolean;
@@ -235,6 +242,7 @@ export interface CreateProductPayload {
   description: string;
   subcategoryId?: string;
   price: number;
+  ivaRate?: number;
   stockQuantity: number;
   lowStockThreshold?: number;
   active?: boolean;

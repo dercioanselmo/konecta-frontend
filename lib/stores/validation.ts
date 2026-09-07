@@ -64,6 +64,10 @@ export const createProductSchema = z.object({
   description: z.string().min(1, "Indique a descrição"),
   subcategoryId: z.string().optional(),
   price: z.number({ error: "Indique o preço" }).min(0, "O preço não pode ser negativo"),
+  // IVA varies by product in Mozambique, so it's set per product instead
+  // of assumed flat — the form defaults it to 17 but the merchant/staff
+  // can change it.
+  ivaRate: z.number({ error: "Indique a taxa de IVA" }).min(0, "Não pode ser negativo").max(100, "Não pode passar 100%"),
   stockQuantity: z
     .number({ error: "Indique a quantidade" })
     .int("Deve ser um número inteiro")

@@ -21,7 +21,7 @@ const PAYMENT_LABELS: Record<Order["paymentMethod"], string> = {
  * only the data-fetching and `backHref` differ between the two.
  */
 export function OrderReceipt({ order, backHref }: { order: Order; backHref: string }) {
-  const { baseAmount, ivaAmount, serviceFee, deliveryFee } = computeMoneyBreakdown(order.subtotal, order.deliveryFee);
+  const { baseAmount, ivaAmount, serviceFee, deliveryFee } = computeMoneyBreakdown(order.subtotal, order.deliveryFee, order.items);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col gap-6 bg-background px-4 py-6 text-foreground sm:px-6 print:max-w-none print:p-8">

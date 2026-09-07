@@ -18,7 +18,7 @@ interface OrderMoneySummaryProps {
  * added on top, since catalog prices already include IVA.
  */
 export function OrderMoneySummary({ items, subtotal, deliveryFee, total }: OrderMoneySummaryProps) {
-  const { baseAmount, ivaAmount, serviceFee, deliveryFee: fee } = computeMoneyBreakdown(subtotal, deliveryFee);
+  const { baseAmount, ivaAmount, serviceFee, deliveryFee: fee } = computeMoneyBreakdown(subtotal, deliveryFee, items);
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">

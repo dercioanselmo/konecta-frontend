@@ -10,6 +10,13 @@ export interface CartItem {
   unitPrice: number | null;
   quantity: number;
   lineTotal: number | null;
+  /**
+   * The product's IVA rate (%), read from Stores-and-Stock — used to sum
+   * IVA per-item instead of assuming a flat rate, see
+   * `lib/checkout/moneyBreakdown.ts`. `null`/absent until Cart starts
+   * returning it; treated as 17% there.
+   */
+  ivaRate?: number | null;
   active: boolean;
   inStock: boolean;
 }

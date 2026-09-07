@@ -786,3 +786,63 @@ overridden: staff should be visible/manageable by Admin too, matching
   orders keep `qrCode: null` forever (no backfill, expected) — only
   orders placed from now on carry a real code.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).
+
+## Round 38: per-product IVA rate — structural change, frontend built, backend not started (2026-09-07)
+
+- **New feature**: IVA in Mozambique varies by product, so it's now a
+  per-product field (`ivaRate`, a %, defaulting to 17) instead of a
+  platform-wide flat 17% assumed everywhere. Added a "Taxa de IVA (%)"
+  input (default 17, editable) to both the merchant product forms
+  (`NewProductForm.tsx`, `ProductDetailView.tsx`) — same "load 17 by
+  default, let the merchant/staff change it" behavior asked for.
+- **Money math reworked to be per-line**: `lib/checkout/moneyBreakdown.ts`'s
+  `computeMoneyBreakdown` now takes the cart/order's `items` and sums
+  IVA as `Σ lineTotal × rate/(100+rate)` per line (falling back to 17%
+  only when items/rate are missing), instead of one flat rate applied to
+  the whole subtotal. All three call sites (`CheckoutView.tsx`,
+  `OrderMoneySummary.tsx`, `OrderReceipt.tsx` — i.e. checkout, customer/
+  merchant/admin order detail, and all three receipt routes) pass their
+  items through, so a mixed-IVA-rate cart shows one correct total
+  everywhere without re-deriving the math per screen.
+- Added `ivaRate?: number | null` to `Product`/`CreateProductPayload`/
+  `UpdateProductPayload` (`lib/stores/types.ts`), `CartItem`
+  (`lib/cart/types.ts`), and `OrderItem` (`lib/checkout/types.ts`) —
+  optional/nullable everywhere since none of it exists on any backend
+  response yet.
+- **Live-verified the backend gap, not just assumed it**: `POST
+  .../merchant/shops/{shopId}/products` with `ivaRate: 5` in the body
+  returns `200` with the product created, but the field is silently
+  dropped — not persisted, not returned, no validation error either.
+  Confirmed this doesn't break the frontend submit (no error thrown),
+  but the merchant's entered rate is currently lost until the backend
+  implements storage for it.
+- Wrote `API_REFERENCE_PRODUCT_IVA.md` (PROPOSED): `ivaRate` needed on
+  Stores-and-Stock's product create/update/read, Cart's line items
+  (read from the product at add-time), and Checkout/Orders' order line
+  items (copied from the cart at checkout time, frozen at that value
+  forever after — not reinterpreted if the product's rate later
+  changes). This is a three-service chain, not a one-service add.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 39: all three backend services shipped ivaRate; feature fully live end-to-end (2026-09-07)
+
+- Backend closed every gap from `API_REFERENCE_PRODUCT_IVA.md` in one
+  pass: Stores-and-Stock persists `ivaRate` on products, Cart carries it
+  onto each line at add-time, Checkout copies it onto the order line at
+  purchase time, Orders returns it unchanged on both customer and
+  merchant detail reads.
+- **Live-verified the full round trip**, no mocks: created a product
+  with `ivaRate: 5` → persisted and read back as `5.0` → added to cart
+  (line carried `ivaRate: 5.0`) → checked out (order response carried
+  `ivaRate: 5.0`) → read the same order back from both the customer and
+  merchant Orders endpoints, both correct. Screenshotted the customer
+  order detail page for a 300 MT / 5%-IVA line: **IVA 14.29 MT**,
+  **Subtotal 270.00 MT**, **Taxa de serviço 30.00 MT** — matches the
+  per-line math in `lib/checkout/moneyBreakdown.ts` exactly, not the old
+  flat-17% figures.
+- No frontend code changed — Round 38 built the whole feature (product
+  form field, per-line IVA math, `ivaRate` threaded through
+  Cart/Order/Product types) against this exact contract from the start;
+  this round was pure verification once the backend caught up.
+- **No remaining backend gaps on this feature.**
+- `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).

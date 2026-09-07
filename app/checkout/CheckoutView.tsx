@@ -103,7 +103,7 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
   const subtotalKnown = cart.subtotal != null;
   const cartTotal = cart.subtotal ?? 0;
   const deliveryFee = deliveryMode === "DELIVERY" ? 20 : 0;
-  const { baseAmount: subtotal, ivaAmount, serviceFee: servicesFee } = computeMoneyBreakdown(cartTotal, deliveryFee);
+  const { baseAmount: subtotal, ivaAmount, serviceFee: servicesFee } = computeMoneyBreakdown(cartTotal, deliveryFee, cart.items);
   const total = cartTotal;
 
   const handleSubmit = async (e: React.FormEvent) => {

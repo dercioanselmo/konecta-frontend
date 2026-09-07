@@ -1,14 +1,12 @@
-# QR code pickup/delivery confirmation — PROPOSED API contract
+# QR code pickup/delivery confirmation — API contract
 
-**Status: PROPOSED. Nothing here exists on any backend service yet.**
-End-of-slice backend report for the new QR feature: after payment, every
-order carries a QR code the customer shows in the store (pickup) or to
-whoever delivers it (delivery); scanning it at the store completes the
-order in one step. The frontend is fully built against this contract —
-`Order.qrCode` is optional/nullable so today's real orders (which don't
-have one) still satisfy the type and simply don't show a QR; the new
-scan screen calls a not-yet-existing endpoint and shows a clean error
-until it exists (confirmed live: `500 INTERNAL_ERROR`, not a crash).
+**Status: FULLY LIVE.** Both `KONECTA-CHECKOUT-SERVICE` (qrCode
+generation at order-creation time) and `KONECTA-ORDERS-SERVICE` (read
+side + `complete-by-qr`) are implemented and live-verified end-to-end
+2026-09-07 — a real checkout produces a real token, Orders reads back
+the identical token, and a merchant scan-and-complete call jumps the
+order straight to its terminal status. The frontend needed zero code
+changes; it was already built against this exact contract.
 
 ---
 
@@ -97,23 +95,36 @@ clean error, neither breaks anything).
 
 ## Frontend status
 
-Fully built: `Order.qrCode?: string | null` (`lib/checkout/types.ts`),
-`components/orders/OrderQrCode.tsx` (client-side rendering via the
-`qrcode` npm package — no backend image needed, just the raw token),
-wired into the customer order detail screen. Merchant side:
-`components/merchant/QrScanner.tsx` (camera capture + `jsQR` decode,
-no all-in-one scanning library), `app/merchant/shops/[shopId]/orders/scan/`
-(+ the equivalent under `app/admin/shops/[shopId]/orders/scan/` via the
-established reuse pattern), `lib/orders/merchantClient.ts`'s
-`completeOrderByQr()`, new BFF route
-`app/api/merchant/shops/[shopId]/orders/complete-by-qr/route.ts`.
+Fully built, no changes needed now that Orders is live: `Order.qrCode?:
+string | null` (`lib/checkout/types.ts`), `components/orders/OrderQrCode.tsx`
+(client-side rendering via the `qrcode` npm package — no backend image
+needed, just the raw token), wired into the customer order detail screen.
+Merchant side: `components/merchant/QrScanner.tsx` (camera capture +
+`jsQR` decode, no all-in-one scanning library),
+`app/merchant/shops/[shopId]/orders/scan/` (+ the equivalent under
+`app/admin/shops/[shopId]/orders/scan/` via the established reuse
+pattern), `lib/orders/merchantClient.ts`'s `completeOrderByQr()`, BFF
+route `app/api/merchant/shops/[shopId]/orders/complete-by-qr/route.ts`.
 
-**Live-verified the degradation path**: with `qrCode` absent from every
-real order today, the customer detail page correctly renders with no QR
-section (not an error) — confirmed against a real order. The new
-`complete-by-qr` BFF route correctly surfaces the real Orders service's
-structured error for an unmapped path (`500 INTERNAL_ERROR`) rather than
-crashing, same pattern as every other not-yet-implemented endpoint in
-this codebase.
+**Live-verified end-to-end 2026-09-07** directly against the real
+services (as customer `dercio.miguel@gmail.com` and merchant
+`dercio.anselmo@zohomail.com`), bypassing the UI:
+- `POST /api/v1/checkout` on a fresh order (store "Supermercado Baoba",
+  order `837e6ecd-fbf0-4878-a36d-2464cfa0373a`) returned a real token
+  (`qrCode: "x0JAq31MBFGdCIGmER17FkKX9Ag71XAM"`).
+- `GET /api/v1/orders/{orderId}` (Orders, customer-scoped) read back
+  the **identical** token straight after.
+- `POST /api/v1/merchant/shops/{shopId}/orders/complete-by-qr` with that
+  token jumped the order `PAID → PICKED_UP` in one call, `200`, correct
+  `deliveryMode`-based terminal status.
+- Earlier this session, an unknown token correctly returned
+  `404 ORDER_NOT_FOUND` (not `500`).
+- The BFF route (`app/api/merchant/shops/[shopId]/orders/complete-by-qr/route.ts`)
+  is a plain passthrough (auth + JSON forward) and needed no change to
+  carry any of this through to `ScanOrderView.tsx`.
+- Orders placed before this shipped keep `qrCode: null` forever (no
+  backfill) — expected, and the customer detail page's degrade-cleanly
+  path (no QR section when absent/null) already handles it correctly.
 
-`tsc --noEmit`, `eslint`, `npm run build` all clean.
+No remaining backend gaps. `tsc --noEmit`, `eslint`, `npm run build` all
+clean (no frontend code changed — verification only, both rounds).

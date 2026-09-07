@@ -741,3 +741,48 @@ overridden: staff should be visible/manageable by Admin too, matching
 - Updated `AGENTS.md` with a new §7c documenting the feature and its scope boundary (courier scanning is out of scope for this round).
 - Live-verified graceful degradation: a real order with no `qrCode` renders its detail page normally (no QR section, no error); the new `complete-by-qr` BFF route correctly surfaces the real Orders service's structured `500` for an unmapped path rather than crashing.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 36: Orders-service half of QR contract now live; verified, no frontend changes needed (2026-09-07)
+
+- Backend (`KONECTA-ORDERS-SERVICE`) implemented its half of
+  `API_REFERENCE_ORDER_QR.md`: `orders.qr_code` column + partial unique
+  index, `qrCode` read-only on both detail endpoints (customer +
+  merchant), `OrderRepository.findByQrCode`, and the real
+  `POST /api/v1/merchant/shops/{shopId}/orders/complete-by-qr` (404
+  `ORDER_NOT_FOUND` for unknown/wrong-shop token, 409
+  `INVALID_TRANSITION` for cancelled/refunded, otherwise jumps to
+  `PICKED_UP`/`DELIVERED` by delivery mode; re-scan of an already-done
+  order is a no-op 200, the idempotency choice §2 left open).
+- **Live-verified directly against the real services** (bypassing the
+  UI, as customer `dercio.miguel@gmail.com` / merchant
+  `dercio.anselmo@zohomail.com`): Orders' `GET /orders/{orderId}` returns
+  the `qrCode` field; `complete-by-qr` returns the spec'd
+  `404 ORDER_NOT_FOUND` for a bogus token (previously `500`) — the
+  endpoint is genuinely live, not just documented. The BFF route was
+  already a plain auth+passthrough, so it carries these real responses
+  through unchanged.
+- **No frontend code changed this round** — everything built in Round
+  35 was already written against this exact contract and needed no
+  adjustment now that the backend caught up.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).
+
+## Round 37: Checkout-service now generating qrCode; feature fully live end-to-end (2026-09-07)
+
+- Backend closed the last gap: `KONECTA-CHECKOUT-SERVICE` now generates
+  a real `qrCode` token at order-creation time (§1 of
+  `API_REFERENCE_ORDER_QR.md`).
+- **Live-verified the complete round trip**, no mocks: placed a fresh
+  order (`POST /api/v1/checkout`, order
+  `837e6ecd-fbf0-4878-a36d-2464cfa0373a`, store "Supermercado Baoba") →
+  got back a real token (`x0JAq31MBFGdCIGmER17FkKX9Ag71XAM`) → read the
+  same order via `GET /api/v1/orders/{orderId}` and got the identical
+  token back → called `complete-by-qr` as the merchant with that token
+  and it jumped `PAID → PICKED_UP` in one call, `200`.
+- No frontend code changed — everything built in Round 35 was already
+  correct against this contract from the start; Rounds 36 and 37 were
+  pure verification as the two backend services caught up piece by
+  piece (Orders first, then Checkout).
+- **No remaining backend gaps on this feature.** Pre-existing test
+  orders keep `qrCode: null` forever (no backfill, expected) — only
+  orders placed from now on carry a real code.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).

@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import {
   getAdminCategory,
@@ -51,6 +52,7 @@ export function CategoryDetailView({ categoryId }: { categoryId: string }) {
   const [deleting, setDeleting] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -118,7 +120,7 @@ export function CategoryDetailView({ categoryId }: { categoryId: string }) {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Eliminar esta categoria? Só é possível se não tiver subcategorias nem lojas associadas.")) return;
+    setConfirmingDelete(false);
     setActionError(null);
     setDeleting(true);
     try {
@@ -210,11 +212,26 @@ export function CategoryDetailView({ categoryId }: { categoryId: string }) {
           <Button type="submit" loading={isSubmitting} className="w-auto px-6">
             Guardar alterações
           </Button>
-          <Button type="button" variant="secondary" className="w-auto px-6 text-red-500" loading={deleting} onClick={handleDelete}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-6 text-red-500"
+            loading={deleting}
+            onClick={() => setConfirmingDelete(true)}
+          >
             Eliminar categoria
           </Button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Eliminar categoria"
+        message="Eliminar esta categoria? Só é possível se não tiver subcategorias nem lojas associadas."
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
 
       <SubcategoriesSection categoryId={categoryId} subcategories={subcategories} onChanged={setSubcategories} />
 
@@ -253,6 +270,7 @@ function SubcategoriesSection({
   const [showNew, setShowNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<Subcategory | null>(null);
 
   const {
     register,
@@ -293,7 +311,7 @@ function SubcategoriesSection({
   };
 
   const remove = async (sub: Subcategory) => {
-    if (!confirm(`Eliminar "${sub.name}"? Só é possível se nenhum produto a usar.`)) return;
+    setPendingRemove(null);
     setError(null);
     setBusyId(sub.id);
     try {
@@ -361,7 +379,7 @@ function SubcategoriesSection({
                   variant="secondary"
                   className="h-9 w-auto px-3 text-sm text-red-500"
                   disabled={busyId === s.id}
-                  onClick={() => remove(s)}
+                  onClick={() => setPendingRemove(s)}
                 >
                   Eliminar
                 </Button>
@@ -370,6 +388,15 @@ function SubcategoriesSection({
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingRemove != null}
+        title="Eliminar subcategoria"
+        message={pendingRemove ? `Eliminar "${pendingRemove.name}"? Só é possível se nenhum produto a usar.` : ""}
+        destructive
+        onConfirm={() => pendingRemove && remove(pendingRemove)}
+        onCancel={() => setPendingRemove(null)}
+      />
     </div>
   );
 }

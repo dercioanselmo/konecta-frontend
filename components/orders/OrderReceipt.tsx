@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ORDER_STATUS_LABELS } from "@/lib/checkout/orderStatusLabels";
+import { computeMoneyBreakdown } from "@/lib/checkout/moneyBreakdown";
 import type { Order } from "@/lib/checkout/types";
 import { PrintButton } from "./PrintButton";
 
@@ -20,6 +21,8 @@ const PAYMENT_LABELS: Record<Order["paymentMethod"], string> = {
  * only the data-fetching and `backHref` differ between the two.
  */
 export function OrderReceipt({ order, backHref }: { order: Order; backHref: string }) {
+  const { baseAmount, ivaAmount, serviceFee, deliveryFee } = computeMoneyBreakdown(order.subtotal, order.deliveryFee);
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col gap-6 bg-background px-4 py-6 text-foreground sm:px-6 print:max-w-none print:p-8">
       <div className="flex items-center justify-between print:hidden">
@@ -102,11 +105,19 @@ export function OrderReceipt({ order, backHref }: { order: Order; backHref: stri
       <div className="flex flex-col items-end gap-1 text-sm">
         <div className="flex w-56 items-center justify-between">
           <span className="text-muted">Subtotal</span>
-          <span>{order.subtotal.toFixed(2)} MT</span>
+          <span>{baseAmount.toFixed(2)} MT</span>
+        </div>
+        <div className="flex w-56 items-center justify-between">
+          <span className="text-muted">IVA</span>
+          <span>{ivaAmount.toFixed(2)} MT</span>
+        </div>
+        <div className="flex w-56 items-center justify-between">
+          <span className="text-muted">Taxa de serviço</span>
+          <span>{serviceFee.toFixed(2)} MT</span>
         </div>
         <div className="flex w-56 items-center justify-between">
           <span className="text-muted">Taxa de entrega</span>
-          <span>{order.deliveryFee != null ? `${order.deliveryFee.toFixed(2)} MT` : "—"}</span>
+          <span>{deliveryFee.toFixed(2)} MT</span>
         </div>
         <div className="mt-1 flex w-56 items-center justify-between border-t border-foreground/20 pt-2 text-base font-bold">
           <span>Total</span>

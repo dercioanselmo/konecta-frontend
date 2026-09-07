@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { useCart } from "@/lib/cart/useCart";
 import { saveCheckoutDraft } from "@/lib/cart/client";
 import { placeOrder, CheckoutApiError } from "@/lib/checkout/client";
+import { computeMoneyBreakdown } from "@/lib/checkout/moneyBreakdown";
 import { fetchNeighborhoods } from "@/lib/auth/client";
 import { useLiveStoreOpen } from "@/lib/stores/useLiveStoreOpen";
 import type { UserPreferences, UserProfile } from "@/lib/auth/types";
@@ -101,11 +102,8 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
 
   const subtotalKnown = cart.subtotal != null;
   const cartTotal = cart.subtotal ?? 0;
-  // Catalog prices already include IVA, so show its component without adding it twice.
-  const ivaAmount = cartTotal * (17 / 117);
-  const servicesFee = cartTotal * 0.1;
   const deliveryFee = deliveryMode === "DELIVERY" ? 20 : 0;
-  const subtotal = Math.max(0, cartTotal - servicesFee - deliveryFee);
+  const { baseAmount: subtotal, ivaAmount, serviceFee: servicesFee } = computeMoneyBreakdown(cartTotal, deliveryFee);
   const total = cartTotal;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -331,11 +329,11 @@ export function CheckoutView({ user, preferences, storeId }: { user: UserProfile
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted">IVA (17%, incluído)</span>
+                <span className="text-muted">IVA</span>
                 <span className="text-foreground">{subtotalKnown ? `${ivaAmount.toFixed(2)} MT` : "—"}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted">Taxa de serviço (10%)</span>
+                <span className="text-muted">Taxa de serviço</span>
                 <span className="text-foreground">{subtotalKnown ? `${servicesFee.toFixed(2)} MT` : "—"}</span>
               </div>
               <div className="flex items-center justify-between">

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { OrderMap } from "@/components/orders/OrderMap";
+import { OrderMoneySummary } from "@/components/orders/OrderMoneySummary";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getMerchantOrder, updateOrderStatus } from "@/lib/orders/merchantClient";
 import { availableActions } from "@/lib/orders/statusTransitions";
 import { ClientApiError } from "@/lib/auth/client";
@@ -43,6 +44,7 @@ export function MerchantOrderDetailView({
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<MerchantOrder["status"] | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -61,9 +63,26 @@ export function MerchantOrderDetailView({
   }, [load]);
 
   const changeStatus = async (status: MerchantOrder["status"], destructive?: boolean) => {
-    if (destructive && !window.confirm("Tem a certeza que quer cancelar esta encomenda? Esta ação não pode ser revertida.")) {
+    if (destructive) {
+      setPendingAction(status);
       return;
     }
+    setActionError(null);
+    setUpdating(status);
+    try {
+      const updated = await updateOrderStatus(shopId, orderId, status);
+      setOrder(updated);
+    } catch (err) {
+      setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atualizar o estado da encomenda.");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const confirmPendingAction = async () => {
+    const status = pendingAction;
+    if (!status) return;
+    setPendingAction(null);
     setActionError(null);
     setUpdating(status);
     try {
@@ -115,12 +134,6 @@ export function MerchantOrderDetailView({
             <OrderStatusRoadmap status={order.status} deliveryMode={order.deliveryMode} />
           </div>
 
-          <div className="rounded-2xl border border-border bg-surface p-4">
-            <h2 className="mb-3 text-base font-semibold text-foreground">Cliente</h2>
-            <p className="text-sm text-foreground">{order.customerName}</p>
-            <p className="text-sm text-muted">{order.contactEmail} · {order.contactPhone}</p>
-          </div>
-
           {availableActions(order.status, order.deliveryMode).length > 0 ? (
             <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
               <h2 className="text-base font-semibold text-foreground">Alterar estado</h2>
@@ -145,47 +158,33 @@ export function MerchantOrderDetailView({
 
           <OrderMap order={order} />
 
-          {order.deliveryAddress ? (
-            <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
-              <p className="font-medium text-foreground">Endereço de entrega</p>
+          <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
+            <p className="font-medium text-foreground">Cliente</p>
+            <p className="mt-1 text-foreground">{order.customerName}</p>
+            {order.deliveryAddress ? (
               <p className="mt-1 text-muted">
-                {order.deliveryAddress.address}, {order.deliveryAddress.neighborhood}, {order.deliveryAddress.city}
+                Endereço: {order.deliveryAddress.address}, {order.deliveryAddress.neighborhood}, {order.deliveryAddress.city}
               </p>
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
-            <h2 className="text-base font-semibold text-foreground">Produtos</h2>
-            <div className="flex flex-col gap-1.5 border-b border-border pb-3">
-              {order.items.map((item) => (
-                <div key={item.productId} className="flex items-center gap-2 text-sm">
-                  {item.photoUrl ? (
-                    <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-background">
-                      <Image src={item.photoUrl} alt="" fill sizes="32px" className="object-cover" unoptimized />
-                    </span>
-                  ) : null}
-                  <span className="flex-1 text-foreground">{item.quantity}× {item.name}</span>
-                  <span className="text-muted">{item.lineTotal.toFixed(2)} MT</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-col gap-1 pt-1 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Subtotal</span>
-                <span className="text-foreground">{order.subtotal.toFixed(2)} MT</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Pagamento</span>
-                <span className="text-foreground">{PAYMENT_LABELS[order.paymentMethod]}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
-                <span className="font-semibold text-foreground">Total</span>
-                <span className="text-lg font-bold text-foreground">{order.total.toFixed(2)} MT</span>
-              </div>
-            </div>
+            ) : null}
+            <p className="mt-1 text-muted">Email: {order.contactEmail}</p>
+            <p className="text-muted">Celular: {order.contactPhone}</p>
+            <p className="mt-1 text-muted">Pagamento: {PAYMENT_LABELS[order.paymentMethod]}</p>
           </div>
+
+          <OrderMoneySummary items={order.items} subtotal={order.subtotal} deliveryFee={order.deliveryFee} total={order.total} />
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingAction != null}
+        title="Cancelar encomenda"
+        message="Tem a certeza que quer cancelar esta encomenda? Esta ação não pode ser revertida."
+        confirmLabel="Sim"
+        cancelLabel="Cancelar"
+        destructive
+        onConfirm={confirmPendingAction}
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

@@ -34,7 +34,8 @@ export function ScanOrderView({
         </Link>
         <h1 className="mt-1 text-xl font-bold text-foreground">Ler código QR</h1>
         <p className="mt-1 text-sm text-muted">
-          Aponte a câmara ao código mostrado pelo cliente para confirmar o levantamento ou a entrega.
+          Aponte a câmara ao código mostrado pelo cliente para avançar a encomenda. A confirmação final do
+          levantamento/entrega é feita na página da encomenda, depois de verificar os produtos.
         </p>
       </div>
 

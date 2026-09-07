@@ -1,12 +1,15 @@
 # QR code pickup/delivery confirmation — API contract
 
-**Status: FULLY LIVE.** Both `KONECTA-CHECKOUT-SERVICE` (qrCode
+**Status: §1 fully live. §2's target status needs a revision — see
+"REVISION NEEDED" below.** `KONECTA-CHECKOUT-SERVICE` (qrCode
 generation at order-creation time) and `KONECTA-ORDERS-SERVICE` (read
-side + `complete-by-qr`) are implemented and live-verified end-to-end
-2026-09-07 — a real checkout produces a real token, Orders reads back
-the identical token, and a merchant scan-and-complete call jumps the
-order straight to its terminal status. The frontend needed zero code
-changes; it was already built against this exact contract.
+side + `complete-by-qr`'s resolve/shop-check/error handling) are
+implemented and live-verified end-to-end — a real checkout produces a
+real token, Orders reads back the identical token. What's now changing
+is **where `complete-by-qr` lands the order**: not the terminal status
+(`PICKED_UP`/`DELIVERED`) as originally built and verified, but the
+last **store-side** status (`READY_FOR_PICKUP`) instead — see the
+revision below for why.
 
 ---
 
@@ -66,13 +69,15 @@ token itself**, then its `storeId` is checked against the path's
 2. If the resolved order's `storeId` doesn't match `{shopId}` →
    `404 ORDER_NOT_FOUND` (same reasoning).
 3. If current status is `CANCELLED` or `REFUNDED` → `409 INVALID_TRANSITION`.
-4. Otherwise transition to `PICKED_UP` (order's `deliveryMode = PICKUP`)
-   or `DELIVERED` (`deliveryMode = DELIVERY`) — regardless of the
-   current status, even if it's still `PAID` or `PENDING_STORE_OPEN`
-   (per the explicit ask: "from any state... to delivered or picked up").
+4. ~~Otherwise transition to `PICKED_UP`/`DELIVERED`~~ — **REVISION
+   NEEDED, see below** — otherwise transition to `READY_FOR_PICKUP`
+   regardless of current status (even `PAID`/`PENDING_STORE_OPEN`), and
+   **already at or past `READY_FOR_PICKUP`** (i.e. `COURIER_ASSIGNED`,
+   `PICKED_UP`, `IN_TRANSIT`) → no-op `200`, order unchanged (never move
+   an order *backward*).
 5. Record this in `order_status_history` same as any other transition
-   (`from_status` = whatever it was, `to_status` = the terminal one,
-   `actor_user_id` = caller).
+   (`from_status` = whatever it was, `to_status` = `READY_FOR_PICKUP`,
+   `actor_user_id` = caller) — skip this write on the already-past no-op.
 6. Return the updated order (same shape as `GET .../orders/{orderId}`).
 
 **Errors**
@@ -84,12 +89,42 @@ token itself**, then its `storeId` is checked against the path's
 | `403` | `ACCESS_DENIED` | Staff `shopId` claim mismatch, or wrong role |
 | `401` | `UNAUTHENTICATED` | Missing/invalid token |
 
-**Idempotency note**: scanning an already-`PICKED_UP`/`DELIVERED`
-order's code again — should this succeed as a no-op (`200`, unchanged),
-or fail? Not prescribing an answer; whichever is simpler to implement
-correctly, since either behavior is defensible and the frontend handles
-both fine (a repeat scan either shows "already confirmed" success or a
-clean error, neither breaks anything).
+---
+
+### REVISION NEEDED (2026-09-07): target status changes from terminal to `READY_FOR_PICKUP`
+
+The original version of this endpoint (built, shipped, and
+live-verified working exactly as spec'd) jumped straight to the order's
+**terminal** status — `PICKED_UP` for pickup, `DELIVERED` for delivery —
+in one scan, with no further action needed. **That's being walked
+back.** The product decision: a QR scan should never be the thing that
+single-handedly closes out an order. It should fast-forward the order
+to `READY_FOR_PICKUP` — the last status the *store* is responsible for —
+from wherever it currently sits (so staff don't have to click through
+Aceitar/Iniciar preparação/Marcar como pronto by hand when the customer
+is already standing at the counter with their code), and then a human
+makes the actual final call **on the order detail page**, via the
+existing `PATCH .../orders/{orderId}/status` action buttons
+(`READY_FOR_PICKUP → PICKED_UP` for pickup; `READY_FOR_PICKUP →
+COURIER_ASSIGNED` for delivery — both already implemented, no change
+needed there) — deliberately so staff can glance at the product list
+against what's physically being handed over before confirming, not blindly
+trust a scanned code to finish the order by itself.
+
+Concretely: replace step 4's target status. Everything else in this
+section — token resolution, shop-match check, `CANCELLED`/`REFUNDED`
+rejection, auth rules, error codes — stays exactly as built and
+verified. The one new wrinkle: since `READY_FOR_PICKUP` is *earlier*
+than several already-reachable statuses (`COURIER_ASSIGNED`,
+`PICKED_UP`, `IN_TRANSIT`), a re-scan after the order has already moved
+past it must be a no-op, not a step backward — same idempotency
+principle as the original idempotency note below, just resolved
+concretely this time instead of left open.
+
+The endpoint name/route (`complete-by-qr`) is left as-is despite no
+longer "completing" anything — a rename is a bigger churn than the
+behavior change itself and isn't requested; flagging the naming
+mismatch here so nobody's confused reading the code cold.
 
 ---
 
@@ -126,5 +161,16 @@ services (as customer `dercio.miguel@gmail.com` and merchant
   backfill) — expected, and the customer detail page's degrade-cleanly
   path (no QR section when absent/null) already handles it correctly.
 
-No remaining backend gaps. `tsc --noEmit`, `eslint`, `npm run build` all
-clean (no frontend code changed — verification only, both rounds).
+**Frontend already updated for the revised target status (2026-09-07)**
+— no frontend code change is actually needed once the backend ships the
+revision above, since the UI already just echoes back whatever status
+the API returns. What *did* change this round is copy/messaging:
+`PickupQrScanner.tsx`'s success panel now says "Encomenda avançada" +
+"Confirme a entrega ao cliente na página da encomenda depois de
+verificar os produtos" instead of implying the scan itself finished the
+order, and `ScanOrderView.tsx`'s intro copy matches. Until the backend
+ships the revision, a scan still jumps straight to the terminal status
+as originally built — the copy is intentionally generic enough
+(echoes `order.status` as returned) to read correctly either way.
+
+`tsc --noEmit`, `eslint`, `npm run build` all clean.

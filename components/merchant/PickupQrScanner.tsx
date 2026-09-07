@@ -28,15 +28,22 @@ interface PickupQrScannerProps {
    * just a heads-up that the wrong customer's code was read.
    */
   expectedOrderId?: string;
-  /** Fired once the backend confirms a pickup/delivery, whether or not it matched `expectedOrderId`. */
+  /** Fired once the backend advances the order, whether or not it matched `expectedOrderId`. */
   onValidated?: (order: MerchantOrder) => void;
 }
 
 /**
- * Store-side pickup/delivery validation: camera QR scan with a manual
- * code fallback, wired to the `complete-by-qr` endpoint. One dedicated
- * component so it can be embedded either on the standalone scan page or
- * directly on an order's detail view.
+ * Store-side pickup/delivery QR scan: camera scan with a manual code
+ * fallback, wired to `complete-by-qr`. One dedicated component so it
+ * can be embedded either on the standalone scan page or directly on an
+ * order's detail view.
+ *
+ * Scanning fast-forwards the order to its last store-side status
+ * (`READY_FOR_PICKUP`) from wherever it currently is — it does **not**
+ * mark the order picked up/delivered by itself. That final call is made
+ * deliberately on the order detail page instead, via its normal
+ * "Alterar estado" action, so staff can check the product list against
+ * what's actually being handed over before confirming.
  */
 export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expectedOrderId, onValidated }: PickupQrScannerProps) {
   const [result, setResult] = useState<Result | null>(null);
@@ -75,11 +82,14 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
       >
         {result.kind === "success" ? (
           <>
-            <p className="text-sm font-semibold text-brand-green">Encomenda confirmada</p>
+            <p className="text-sm font-semibold text-brand-green">Encomenda avançada</p>
             <p className="text-sm text-foreground">
               #{result.order.orderId.slice(0, 8)} · {result.order.customerName}
             </p>
             <p className="text-sm text-muted">Novo estado: {ORDER_STATUS_LABELS[result.order.status] ?? result.order.status}</p>
+            <p className="text-sm text-muted">
+              Confirme a entrega ao cliente na página da encomenda depois de verificar os produtos.
+            </p>
             <Link href={`${basePath}/${shopId}/orders/${result.order.orderId}`} className="text-sm font-medium text-brand-green hover:underline">
               Ver encomenda →
             </Link>
@@ -88,7 +98,7 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
           <>
             <p className="text-sm font-semibold text-amber-700">Código de outra encomenda</p>
             <p className="text-sm text-foreground">
-              Este código confirmou a encomenda #{result.order.orderId.slice(0, 8)} ({result.order.customerName}), não a
+              Este código avançou a encomenda #{result.order.orderId.slice(0, 8)} ({result.order.customerName}), não a
               encomenda que estava a validar.
             </p>
             <p className="text-sm text-muted">Novo estado da encomenda lida: {ORDER_STATUS_LABELS[result.order.status] ?? result.order.status}</p>

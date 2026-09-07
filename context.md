@@ -891,6 +891,87 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 44: reverted the pending-confirm scan UI; final confirmation moved back to the order detail page instead (2026-09-07)
+
+- **Round 43's change (a staged "read code → tap Confirmar" step inside
+  `PickupQrScanner.tsx`) is reverted** — back to instant submit-on-scan/
+  manual-entry, per explicit direction ("go back to previous design").
+- **What actually changes instead is the *target status* the scan
+  should land on.** Rather than a UI confirm step before calling the
+  API, the real fix is: the scan itself should never single-handedly
+  close out an order. It should fast-forward the order to
+  `READY_FOR_PICKUP` (the last status the *store* owns) from wherever it
+  is, and the **actual final confirmation happens on the order detail
+  page** — via the already-existing "Alterar estado" action buttons
+  (`READY_FOR_PICKUP → PICKED_UP`/`COURIER_ASSIGNED`) — so staff check
+  the product list against what's being handed over before confirming,
+  rather than trusting a scan to finish the order unattended.
+- **This is a backend contract revision, not a frontend one** — the
+  target status a scan lands on is entirely backend logic; the
+  frontend already just echoes back whatever `order.status` the API
+  returns. Documented the full revision in `API_REFERENCE_ORDER_QR.md`
+  (a `REVISION NEEDED` section under §2): replace the "any status →
+  terminal" target with "any status → `READY_FOR_PICKUP`", with a
+  no-op (not backward-moving) response for orders already at or past
+  it. Everything else about the endpoint (token resolution, shop-match
+  check, `CANCELLED`/`REFUNDED` rejection, auth, error codes) is
+  unchanged and still correct as originally verified.
+- Updated copy only: `PickupQrScanner.tsx`'s success panel now says
+  "Encomenda avançada" + a line telling staff to confirm on the order
+  page after checking products, instead of implying the scan itself
+  completed the order; `ScanOrderView.tsx`'s intro text matches. Written
+  generically enough (echoes whatever `order.status` actually comes
+  back) that it reads correctly whether the backend has shipped the
+  revision yet or not — today, before the backend ships it, a scan
+  still jumps to the terminal status same as before, and the copy still
+  makes sense either way.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 43: QR scan no longer auto-transitions — explicit confirm step added (2026-09-07)
+
+- Per explicit ask: reading a code (camera decode or manual entry) must
+  never call `complete-by-qr` by itself — it only *stages* the code.
+  `PickupQrScanner.tsx` gained a `Stage` state machine
+  (`idle → pending → result`): a successful camera decode or the manual
+  form's now-relabeled "Ler código" button both just move to `pending`
+  (shows the raw code + "Confirme para marcar a encomenda como
+  levantada/entregue. Esta ação não pode ser revertida." + Cancelar/
+  Confirmar levantamento/entrega buttons) — the API call, and the actual
+  transition, only happens on that explicit Confirmar tap.
+  "Cancelar" goes back to idle without ever calling the API.
+- The camera component unmounts (releasing its tracks) the moment a
+  code is staged, not just on a final result — no live feed running
+  while the staff member is reviewing/deciding.
+- **Live-verified**: staged a real order's code via manual entry,
+  confirmed via a direct API read that the order was still `PAID`
+  (unchanged) at that point, then tapped Confirmar and verified it
+  flipped to `PICKED_UP` only then.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 42: active-order count + delay warning on the shop-picker cards (2026-09-07)
+
+- `app/merchant/page.tsx` ("As suas lojas") now shows a pill per shop:
+  **N encomendas ativas**, counted via the same `tab=ACTIVE` Orders
+  filter already used everywhere else (excludes `DELIVERED`,
+  `CANCELLED`, `REFUNDED`, and terminal pickup `PICKED_UP` — no new
+  business rule, just reusing the hub's existing active/history split).
+  Fetched per shop in parallel (`Promise.all`), same pattern as
+  `ShopDashboard.tsx`'s existing per-shop Orders call — no dedicated
+  counts endpoint exists yet, so this is capped to the first 200 active
+  orders per shop like that dashboard already is.
+- **Delay flag**: if any order in that page has been sitting in its
+  current status for more than 5 minutes (`statusUpdatedAt ?? createdAt`
+  vs now), the pill switches from green to orange — same visual
+  language as the existing "produtos com stock baixo" warning pill
+  right next to it, and appends "· atrasada".
+- A shop with zero active orders shows no pill at all (not "0 encomendas
+  ativas") — consistent with how the low-stock pill already only
+  appears when the count is positive.
+- **Live-verified** against real data: two shops with 7 long-stale
+  active test orders each correctly showed the orange "7 encomendas
+  ativas · atrasada" pill; shops with zero active orders showed nothing.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 41: "Ler QR code" made a persistent floating action across every shop page (2026-09-07)
 
 - Per explicit ask: the scan entry point must be reachable from **every**

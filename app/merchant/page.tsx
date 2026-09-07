@@ -2,8 +2,41 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { storesApiFetch } from "@/lib/stores/storesApi";
+import { ordersApiFetch } from "@/lib/orders/ordersApi";
 import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
 import type { ShopSummary } from "@/lib/stores/types";
+import type { MerchantOrdersListResponse } from "@/lib/orders/merchantTypes";
+
+const DELAY_THRESHOLD_MS = 5 * 60 * 1000;
+
+interface ShopOrderStats {
+  activeCount: number;
+  delayed: boolean;
+}
+
+/**
+ * Active-order count + delay flag per shop, for the shop-picker cards.
+ * Same "no dedicated counts endpoint yet" limitation as `ShopDashboard.tsx`
+ * — capped to the first 200 active orders per shop rather than a true
+ * total beyond that. A shop's fetch failing shouldn't take down the
+ * whole picker, so it just shows no badge for that one shop.
+ */
+async function loadShopOrderStats(shopId: string, headers: HeadersInit): Promise<ShopOrderStats> {
+  try {
+    const page = await ordersApiFetch<MerchantOrdersListResponse>(
+      `/api/v1/merchant/shops/${shopId}/orders?tab=ACTIVE&size=200`,
+      { headers },
+    );
+    const now = Date.now();
+    const delayed = page.content.some((order) => {
+      const since = new Date(order.statusUpdatedAt ?? order.createdAt).getTime();
+      return now - since > DELAY_THRESHOLD_MS;
+    });
+    return { activeCount: page.totalElements, delayed };
+  } catch {
+    return { activeCount: 0, delayed: false };
+  }
+}
 
 export default async function MerchantShopsPage() {
   // MERCHANT_STAFF only ever has the one shop they were assigned to — skip
@@ -20,13 +53,17 @@ export default async function MerchantShopsPage() {
 
   let shops: ShopSummary[] = [];
   let loadError = false;
+  let orderStats: Record<string, ShopOrderStats> = {};
   if (accessToken) {
+    const headers = { Authorization: `Bearer ${accessToken}` };
     try {
-      shops = await storesApiFetch<ShopSummary[]>("/api/v1/merchant/shops", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      shops = await storesApiFetch<ShopSummary[]>("/api/v1/merchant/shops", { headers });
     } catch {
       loadError = true;
+    }
+    if (shops.length > 0) {
+      const stats = await Promise.all(shops.map((s) => loadShopOrderStats(s.id, headers)));
+      orderStats = Object.fromEntries(shops.map((s, i) => [s.id, stats[i]]));
     }
   }
 
@@ -88,6 +125,17 @@ export default async function MerchantShopsPage() {
             {shop.lowStockCount > 0 ? (
               <span className="w-fit rounded-full bg-brand-orange/15 px-3 py-1 text-xs font-semibold text-brand-orange">
                 {shop.lowStockCount} produto{shop.lowStockCount === 1 ? "" : "s"} com stock baixo
+              </span>
+            ) : null}
+            {orderStats[shop.id] && orderStats[shop.id].activeCount > 0 ? (
+              <span
+                className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                  orderStats[shop.id].delayed ? "bg-brand-orange/15 text-brand-orange" : "bg-brand-green/15 text-brand-green"
+                }`}
+              >
+                {orderStats[shop.id].activeCount} encomenda{orderStats[shop.id].activeCount === 1 ? "" : "s"} ativa
+                {orderStats[shop.id].activeCount === 1 ? "" : "s"}
+                {orderStats[shop.id].delayed ? " · atrasada" : ""}
               </span>
             ) : null}
           </Link>

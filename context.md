@@ -891,6 +891,32 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 47: customer can share/export the pickup QR code (2026-09-07)
+
+- Per explicit ask: the customer needs to be able to send the QR code
+  to someone else (WhatsApp, email, etc.) so that person can do the
+  pickup/delivery instead.
+- `components/orders/OrderQrCode.tsx` gained two buttons under the QR
+  image: **Partilhar** (Web Share API, `navigator.share`/`canShare` —
+  shares the actual PNG as a file when the browser supports sharing
+  files, which is what makes WhatsApp/etc. show it as an image rather
+  than a link; falls back to sharing just the raw code as text if only
+  plain `navigator.share` exists, and to a plain download if neither
+  does) and **Transferir** (always-available plain image download via
+  a generated `<a download>` click, no library). The feature-detect for
+  file-sharing support runs once via a lazy `useState` initializer
+  (`typeof navigator !== "undefined" && navigator.canShare(...)`)
+  rather than an effect, to avoid a same-render setState-in-effect lint
+  violation for what's really a one-time synchronous check.
+- The user cancelling the native share sheet (`AbortError`) is treated
+  as a no-op, not surfaced as an error.
+- **Live-verified** in a real (headless, so no `navigator.share`)
+  browser: both buttons render under the QR on the customer order
+  detail page, and clicking either (Transferir's real download path,
+  Partilhar's graceful no-`navigator.share` fallback path) completes
+  without any console error or page disruption.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 46: "Alterar estado" collapsed to match the new 3/5-step roadmap (2026-09-07)
 
 - Round 45 simplified the *display* roadmap but left the merchant's

@@ -58,6 +58,16 @@ export function LocationForm({
       setShop(s);
       if (s.latitude != null && s.longitude != null) {
         setPosition([s.latitude, s.longitude]);
+      } else if (typeof navigator !== "undefined" && navigator.geolocation) {
+        // No location saved for this shop yet — pre-pin the device's real
+        // GPS position instead of leaving the static Maputo default;
+        // silent no-op on denial/timeout, the Maputo default already
+        // rendered stands either way.
+        navigator.geolocation.getCurrentPosition(
+          (pos) => setPosition([pos.coords.latitude, pos.coords.longitude]),
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000 },
+        );
       }
     } catch (err) {
       setLoadError(err instanceof ClientApiError ? err.message : "Não foi possível carregar a loja.");

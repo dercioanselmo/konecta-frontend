@@ -13,6 +13,8 @@ import { registerSchema, type RegisterFormValues } from "@/lib/auth/validation";
 import { registerCustomer, fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
 import { ROLE_LABELS, REQUESTABLE_ROLES } from "@/lib/auth/roleLabels";
 import { PreferencesSection } from "@/app/profile/PreferencesSection";
+import { LocationPicker, MAPUTO_DEFAULT } from "@/components/customer/LocationPicker";
+import { useDeviceLocationDefault } from "@/lib/geo/useDeviceLocationDefault";
 import type { Neighborhood, RequestableRole, UserPreferences } from "@/lib/auth/types";
 
 function RegisterForm() {
@@ -24,6 +26,8 @@ function RegisterForm() {
     deliveryPreference: null,
     paymentMethod: null,
   });
+  const [position, setPosition] = useState<[number, number]>(MAPUTO_DEFAULT);
+  useDeviceLocationDefault(false, (lat, lng) => setPosition([lat, lng]));
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -55,6 +59,11 @@ function RegisterForm() {
       // to call that authenticated endpoint directly.
       if (preferences.deliveryPreference) verifyUrl.searchParams.set("deliveryPreference", preferences.deliveryPreference);
       if (preferences.paymentMethod) verifyUrl.searchParams.set("paymentMethod", preferences.paymentMethod);
+      // Same reasoning as preferences above — no session yet to call
+      // PATCH .../location directly, so the pinned coordinates ride along
+      // through OTP verify → login and get saved right after first login.
+      verifyUrl.searchParams.set("latitude", String(position[0]));
+      verifyUrl.searchParams.set("longitude", String(position[1]));
       router.push(`${verifyUrl.pathname}${verifyUrl.search}`);
     } catch (error) {
       if (error instanceof ClientApiError) {
@@ -97,6 +106,15 @@ function RegisterForm() {
             </option>
           ))}
         </Select>
+
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">Localização</h2>
+          <p className="mb-3 text-xs text-muted">
+            Usada para mostrar lojas e produtos mais próximos de si — ajuste o pin se não estiver correto.
+          </p>
+          <LocationPicker latitude={position[0]} longitude={position[1]} onChange={(lat, lng) => setPosition([lat, lng])} />
+        </div>
+
         <Select label="Quero registar-me como" {...register("requestedRole")} defaultValue="">
           <option value="">Cliente</option>
           {REQUESTABLE_ROLES.map((r) => (

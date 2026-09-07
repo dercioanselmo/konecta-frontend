@@ -891,6 +891,49 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 48: device GPS pre-pins every map, including a new one on registration (2026-09-07)
+
+- Per explicit ask: every map used to set coordinates — registration,
+  profile, store location — should default to the device's real GPS
+  position (via the browser's Geolocation API) instead of the static
+  Maputo pin, whenever there isn't already a saved location to show;
+  falls back to the Maputo default (and manual pin/search, as before)
+  on denial, timeout, or no geolocation support.
+- New shared `lib/geo/useDeviceLocationDefault.ts` — a tiny hook,
+  `useDeviceLocationDefault(hasSavedLocation, onLocated)`, called once
+  on mount; no-ops entirely if a real saved location already exists (so
+  reopening a screen with a stored address never silently jumps the pin
+  to wherever the user happens to be right now). Wired into
+  `app/profile/ProfileForm.tsx`, `app/profile/LocationSection.tsx`
+  (existing maps), and the two registration entry points (see below,
+  new maps). The merchant Store Details form
+  (`app/merchant/shops/[shopId]/location/LocationForm.tsx`) got the same
+  logic inlined instead, since its position is only known after an
+  async shop fetch resolves, not synchronously at mount like the others.
+- **New capability, not previously built**: after user clarification, a
+  location map was added to *both* registration entry points that had
+  none before — `app/register/page.tsx` (self-registration) and
+  `app/complete-profile/CompleteProfileForm.tsx` (Google OAuth signups
+  finishing their profile). Register has no authenticated session yet
+  to call `PATCH .../location` directly, so the pinned coordinates ride
+  through the existing register → verify-otp → login relay (same
+  established pattern already used for delivery/payment preferences —
+  query params carried across each redirect) and get saved via
+  `setUserLocation` right after the very first successful login.
+  Complete-profile already has a session, so it saves directly
+  alongside `completeProfile()` on submit.
+- Checkout's own `LocationPicker` (`app/checkout/CheckoutView.tsx`) is
+  deliberately **not** touched — it already prefills from the profile's
+  saved address per AGENTS.md, and overriding that with a fresh GPS
+  fix on every checkout would fight that intentional behavior.
+- **Live-verified**: screenshotted the new registration map (renders,
+  defaults to Maputo in a headless browser with no GPS access — correct
+  fallback behavior) and the merchant Store Details map for a shop that
+  already has a saved location (pin stayed exactly on its stored
+  coordinates, confirming the "don't override an existing save" guard
+  works).
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 47: customer can share/export the pickup QR code (2026-09-07)
 
 - Per explicit ask: the customer needs to be able to send the QR code

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { LocationPicker, MAPUTO_DEFAULT } from "@/components/customer/LocationPicker";
+import { useDeviceLocationDefault } from "@/lib/geo/useDeviceLocationDefault";
 import {
   editProfileSchema,
   changePasswordSchema,
@@ -37,11 +38,11 @@ export function ProfileForm({
 }) {
   const [user, setUser] = useState(initialUser);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const hasSavedLocation = initialUser.latitude != null && initialUser.longitude != null;
   const [position, setPosition] = useState<[number, number]>(
-    initialUser.latitude != null && initialUser.longitude != null
-      ? [initialUser.latitude, initialUser.longitude]
-      : MAPUTO_DEFAULT,
+    hasSavedLocation ? [initialUser.latitude!, initialUser.longitude!] : MAPUTO_DEFAULT,
   );
+  useDeviceLocationDefault(hasSavedLocation, (lat, lng) => setPosition([lat, lng]));
   const [preferences, setPreferences] = useState<UserPreferences>(initialPreferences);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);

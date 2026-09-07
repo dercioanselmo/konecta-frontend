@@ -9,7 +9,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { loginSchema, type LoginFormValues } from "@/lib/auth/validation";
-import { login, setUserPreferences, ClientApiError, ROLE_HOME_CLIENT, isGmailAddress } from "@/lib/auth/client";
+import { login, setUserPreferences, setUserLocation, ClientApiError, ROLE_HOME_CLIENT, isGmailAddress } from "@/lib/auth/client";
 import { isProfileComplete } from "@/lib/auth/profile";
 import type { DeliveryPreference, PaymentMethod } from "@/lib/auth/types";
 
@@ -21,6 +21,8 @@ function LoginForm() {
   const nextPath = searchParams.get("next");
   const deliveryPreference = searchParams.get("deliveryPreference") as DeliveryPreference | null;
   const paymentMethod = searchParams.get("paymentMethod") as PaymentMethod | null;
+  const latitude = searchParams.get("latitude");
+  const longitude = searchParams.get("longitude");
   const [formError, setFormError] = useState<string | null>(null);
   const [redirectingToGoogle, setRedirectingToGoogle] = useState(false);
 
@@ -45,6 +47,9 @@ function LoginForm() {
           ...(deliveryPreference ? { deliveryPreference } : {}),
           ...(paymentMethod ? { paymentMethod } : {}),
         }).catch(() => {});
+      }
+      if (latitude && longitude) {
+        await setUserLocation(Number(latitude), Number(longitude)).catch(() => {});
       }
       if (!isProfileComplete(user)) {
         router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { LocationPicker, MAPUTO_DEFAULT } from "@/components/customer/LocationPicker";
+import { useDeviceLocationDefault } from "@/lib/geo/useDeviceLocationDefault";
 import { setUserLocation, ClientApiError } from "@/lib/auth/client";
 import type { UserProfile } from "@/lib/auth/types";
 
@@ -14,9 +15,11 @@ import type { UserProfile } from "@/lib/auth/types";
  * own single "Guardar alterações" submit — see ProfileForm.tsx.
  */
 export function LocationSection({ user, onSaved }: { user: UserProfile; onSaved: (user: UserProfile) => void }) {
+  const hasSavedLocation = user.latitude != null && user.longitude != null;
   const [position, setPosition] = useState<[number, number]>(
-    user.latitude != null && user.longitude != null ? [user.latitude, user.longitude] : MAPUTO_DEFAULT,
+    hasSavedLocation ? [user.latitude!, user.longitude!] : MAPUTO_DEFAULT,
   );
+  useDeviceLocationDefault(hasSavedLocation, (lat, lng) => setPosition([lat, lng]));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

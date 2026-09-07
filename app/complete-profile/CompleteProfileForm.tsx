@@ -10,12 +10,19 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { completeProfileSchema, type CompleteProfileFormValues } from "@/lib/auth/validation";
-import { completeProfile, fetchNeighborhoods, ClientApiError, ROLE_HOME_CLIENT } from "@/lib/auth/client";
+import { completeProfile, setUserLocation, fetchNeighborhoods, ClientApiError, ROLE_HOME_CLIENT } from "@/lib/auth/client";
+import { LocationPicker, MAPUTO_DEFAULT } from "@/components/customer/LocationPicker";
+import { useDeviceLocationDefault } from "@/lib/geo/useDeviceLocationDefault";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
 
 export function CompleteProfileForm({ user, nextPath }: { user: UserProfile; nextPath?: string }) {
   const router = useRouter();
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const hasSavedLocation = user.latitude != null && user.longitude != null;
+  const [position, setPosition] = useState<[number, number]>(
+    hasSavedLocation ? [user.latitude!, user.longitude!] : MAPUTO_DEFAULT,
+  );
+  useDeviceLocationDefault(hasSavedLocation, (lat, lng) => setPosition([lat, lng]));
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -41,7 +48,8 @@ export function CompleteProfileForm({ user, nextPath }: { user: UserProfile; nex
   const onSubmit = async (values: CompleteProfileFormValues) => {
     setFormError(null);
     try {
-      const updated = await completeProfile(values);
+      const [latitude, longitude] = position;
+      const [updated] = await Promise.all([completeProfile(values), setUserLocation(latitude, longitude)]);
       router.push(nextPath || ROLE_HOME_CLIENT[updated.role]);
     } catch (error) {
       if (error instanceof ClientApiError) {
@@ -80,6 +88,14 @@ export function CompleteProfileForm({ user, nextPath }: { user: UserProfile; nex
             </option>
           ))}
         </Select>
+
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">Localização</h2>
+          <p className="mb-3 text-xs text-muted">
+            Usada para mostrar lojas e produtos mais próximos de si — ajuste o pin se não estiver correto.
+          </p>
+          <LocationPicker latitude={position[0]} longitude={position[1]} onChange={(lat, lng) => setPosition([lat, lng])} />
+        </div>
 
         {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
 

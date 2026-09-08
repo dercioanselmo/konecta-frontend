@@ -93,6 +93,12 @@ export interface ShopCourier {
   distanceKm: number;
   status: AssociationStatus;
   requestedAt: string;
+  /** Returned by Courier Service for the merchant detail map. */
+  baseLatitude?: number | null;
+  baseLongitude?: number | null;
+  baseAddress?: string | null;
+  baseCity?: string | null;
+  baseNeighborhood?: string | null;
 }
 
 /** Same as `ShopCourier` plus the documents the store needs to check before approving. */

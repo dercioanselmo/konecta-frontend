@@ -66,6 +66,17 @@ per-shop associations and validate status transitions server-side.
   Courier cancellation now correctly handles the backend `204 No Content`
   response and refetches the order; courier detail types contain no item
   prices, line totals, subtotal, or delivery fee.
+- Merchant Entregadores now opens on `Ativos`; the `Pendentes` tab shows a
+  visible count when approvals are waiting.
+- Merchant courier detail loads the shop location and renders store and
+  courier-base pins, distance, and base address when Courier Service
+  returns `baseLatitude`, `baseLongitude`, `baseAddress`,
+  `baseNeighborhood`, and `baseCity`.
+- Courier home access now loads the courier profile and shop associations
+  independently. A courier with at least one `ACTIVE` shop association can
+  enter the home/order UI even if the profile read is stale or unavailable;
+  only a courier with neither a profile nor an active shop association is
+  redirected to onboarding.
 
 ### Validation
 

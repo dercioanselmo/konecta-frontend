@@ -6,6 +6,8 @@ import Link from "next/link";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { CourierBaseLocationMap } from "@/components/merchant/CourierBaseLocationMap";
+import { getShop } from "@/lib/stores/client";
 import { getShopCourier, setCourierStatus, rejectCourier } from "@/lib/courier/client";
 import { ClientApiError } from "@/lib/auth/client";
 import {
@@ -14,6 +16,7 @@ import {
   DOCUMENT_TYPE_LABELS,
   type ShopCourierDetail,
 } from "@/lib/courier/types";
+import type { Shop } from "@/lib/stores/types";
 
 interface CourierDetailViewProps {
   shopId: string;
@@ -39,13 +42,15 @@ export function CourierDetailView({
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shop, setShop] = useState<Shop | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const detail = await getShopCourier(shopId, courierId);
+      const [detail, shopDetail] = await Promise.all([getShopCourier(shopId, courierId), getShop(shopId)]);
       setCourier(detail);
+      setShop(shopDetail);
     } catch (err) {
       setLoadError(err instanceof ClientApiError ? err.message : "Não foi possível carregar o entregador.");
     } finally {
@@ -124,9 +129,24 @@ export function CourierDetailView({
                 {courier.plateNumber ? ` (${courier.plateNumber})` : ""}
               </p>
               <p className="text-sm text-muted">{courier.distanceKm.toFixed(1)} km da loja</p>
+              {courier.baseAddress ? <p className="text-sm text-muted">Base: {courier.baseAddress}{courier.baseNeighborhood ? `, ${courier.baseNeighborhood}` : ""}{courier.baseCity ? `, ${courier.baseCity}` : ""}</p> : null}
             </div>
             <Badge tone={TONE[courier.status]}>{ASSOCIATION_STATUS_LABELS[courier.status]}</Badge>
           </div>
+
+          {shop?.latitude != null && shop.longitude != null && courier.baseLatitude != null && courier.baseLongitude != null ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Localização</h2>
+                <p className="text-sm text-muted">Loja e base do entregador · {courier.distanceKm.toFixed(1)} km</p>
+              </div>
+              <CourierBaseLocationMap
+                shop={{ latitude: shop.latitude, longitude: shop.longitude }}
+                courier={{ latitude: courier.baseLatitude, longitude: courier.baseLongitude }}
+              />
+              {!courier.baseAddress ? <p className="text-sm text-muted">Endereço da base não disponível.</p> : null}
+            </div>
+          ) : null}
 
           {actionError ? <p className="text-sm text-red-500">{actionError}</p> : null}
 

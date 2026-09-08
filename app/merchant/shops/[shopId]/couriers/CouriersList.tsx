@@ -19,8 +19,8 @@ interface CouriersListProps {
 }
 
 const TABS: { value: AssociationStatus; label: string }[] = [
-  { value: "PENDING_STORE_APPROVAL", label: "Pendentes" },
   { value: "ACTIVE", label: "Ativos" },
+  { value: "PENDING_STORE_APPROVAL", label: "Pendentes" },
   { value: "SUSPENDED", label: "Suspensos" },
 ];
 
@@ -37,7 +37,7 @@ export function CouriersList({
   listHref = "/merchant",
   listLabel = "As suas lojas",
 }: CouriersListProps) {
-  const [tab, setTab] = useState<AssociationStatus>("PENDING_STORE_APPROVAL");
+  const [tab, setTab] = useState<AssociationStatus>("ACTIVE");
   const [couriers, setCouriers] = useState<ShopCourier[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,7 @@ export function CouriersList({
               tab === t.value ? "border-brand-green bg-brand-green/10 text-brand-green" : "border-border bg-surface text-foreground"
             }`}
           >
-            {t.label}
+            {t.label}{t.value === "PENDING_STORE_APPROVAL" && couriers.filter((courier) => courier.status === t.value).length > 0 ? ` (${couriers.filter((courier) => courier.status === t.value).length})` : ""}
           </button>
         ))}
       </div>

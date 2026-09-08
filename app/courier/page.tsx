@@ -30,25 +30,28 @@ export default async function CourierHomePage() {
   if (accessToken) {
     const headers = { Authorization: `Bearer ${accessToken}` };
     try {
-      profile = await courierApiFetch<CourierProfile>("/api/v1/couriers/me", { headers });
-      try {
-        shops = await courierApiFetch<CourierShopAssociation[]>("/api/v1/couriers/me/shops", { headers });
-      } catch {
-        // Non-fatal — the profile summary still renders without the shops list.
+      const [profileResult, shopsResult] = await Promise.allSettled([
+        courierApiFetch<CourierProfile>("/api/v1/couriers/me", { headers }),
+        courierApiFetch<CourierShopAssociation[]>("/api/v1/couriers/me/shops", { headers }),
+      ]);
+      if (profileResult.status === "fulfilled") profile = profileResult.value;
+      if (shopsResult.status === "fulfilled") shops = shopsResult.value;
+
+      const hasActiveShop = shops.some((shop) => shop.status === "ACTIVE");
+      if (!profile && !hasActiveShop) {
+        if (profileResult.status === "rejected" && profileResult.reason instanceof CourierServiceError && profileResult.reason.status === 404) {
+          redirect("/courier/onboarding");
+        }
+        serviceUnavailable = true;
       }
-    } catch (err) {
-      if (err instanceof CourierServiceError && err.status === 404) {
-        redirect("/courier/onboarding");
-      }
-      // Any other failure (including the proposed service not existing yet)
-      // — show a degrade-cleanly banner rather than crashing the page.
+    } catch {
       serviceUnavailable = true;
     }
   }
 
   return (
     <CourierShell user={user}>
-      <CourierOrdersDashboard profileComplete={profile != null} />
+      <CourierOrdersDashboard profileComplete={profile != null || shops.some((shop) => shop.status === "ACTIVE")} />
       <div className="mt-6 flex flex-col gap-6">
         {user.status === "PENDING" && user.requestedRole ? (
           <p className="rounded-xl bg-brand-orange/10 px-4 py-3 text-sm text-brand-orange">

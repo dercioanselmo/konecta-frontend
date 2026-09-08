@@ -13,7 +13,7 @@ import { TRANSPORT_LABELS, ASSOCIATION_STATUS_LABELS, type CourierProfile, type 
 export default async function CourierHomePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/courier");
-  if (!isProfileComplete(user)) redirect("/complete-profile");
+  if (!isProfileComplete(user) && user.role !== "COURIER") redirect("/complete-profile");
   if (mustChangePassword(user)) redirect("/change-password");
   // A pending courier applicant must complete their profile before the
   // admin approval that would actually flip their role to COURIER — send

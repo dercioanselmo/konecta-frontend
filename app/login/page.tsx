@@ -52,7 +52,11 @@ function LoginForm() {
       if (latitude && longitude) {
         await setUserLocation(Number(latitude), Number(longitude)).catch(() => {});
       }
-      if (!isProfileComplete(user)) {
+      // An approved courier is routed through the courier-service profile
+      // and shop-association gates, not the generic customer profile gate.
+      // Otherwise one missing generic profile field traps an approved
+      // courier on /complete-profile before /courier can inspect ACTIVE shops.
+      if (!isProfileComplete(user) && user.role !== "COURIER") {
         router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");
         return;
       }

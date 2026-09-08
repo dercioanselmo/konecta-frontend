@@ -270,6 +270,32 @@ Rejection deletes the pending association. There is no `REJECTED` association st
 
 ## Merchant Order Endpoints
 
+## Merchant Courier Detail Location Extension
+
+For the merchant courier detail screen, extend:
+
+```http
+GET /api/v1/merchant/shops/{shopId}/couriers/{courierId}
+```
+
+The response must include the courier's saved base location and address:
+
+```json
+{
+  "baseLatitude": -25.9655,
+  "baseLongitude": 32.5832,
+  "baseAddress": "Av. Julius Nyerere, 100",
+  "baseNeighborhood": "Polana",
+  "baseCity": "Maputo"
+}
+```
+
+These fields are required for the Store Admin courier detail page to show
+the store pin, courier-base pin, distance, and base address. The frontend
+already supports these optional fields and renders the map when they are
+present. They should come from the courier profile and must be scoped to
+the requested shop association.
+
 ### Manually assign a courier
 
 ```http

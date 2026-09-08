@@ -8,7 +8,7 @@ import { CourierOnboardingForm } from "./CourierOnboardingForm";
 export default async function CourierOnboardingPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/courier/onboarding");
-  if (!isProfileComplete(user)) redirect("/complete-profile");
+  if (!isProfileComplete(user) && user.role !== "COURIER") redirect("/complete-profile");
   if (mustChangePassword(user)) redirect("/change-password");
   // Reachable by an already-approved courier (editing their profile later)
   // *and* by a pending applicant completing it before approval — see

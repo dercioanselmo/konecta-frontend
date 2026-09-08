@@ -714,7 +714,7 @@ Use only in local/dev; never commit secrets to public repos if policy forbids.
 | Admin | `dercio.anselmo@yahoo.com` | `EmitaSpencer13` |
 | Merchant (store admin) | `dercio.anselmo@zohomail.com` | `EmitaSpencer13` |
 | Merchant staff (`STORE_STAFF` / Funcionário) | `dercio.miguel@zohomail.com` | `Emit@Spencer13` |
-| Customer | `dercio.miguel@gmail.com` | `EmitaSpencer13` |
+| Customer | `dercio.anselmo4@gmail.com` | `EmitaSpencer13` |
 
 Checkout is exercised primarily as **Customer**.
 

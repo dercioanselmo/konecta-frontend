@@ -77,6 +77,13 @@ per-shop associations and validate status transitions server-side.
   enter the home/order UI even if the profile read is stale or unavailable;
   only a courier with neither a profile nor an active shop association is
   redirected to onboarding.
+- Approved `COURIER` users now bypass the generic `/complete-profile` gate
+  during login and courier-page entry; courier profile and active-shop
+  checks own that flow.
+- The merchant courier map is ready in the frontend, but the live merchant
+  courier-detail response must include `baseLatitude`, `baseLongitude`,
+  `baseAddress`, `baseNeighborhood`, and `baseCity` before the pins/address
+  can render.
 
 ### Validation
 

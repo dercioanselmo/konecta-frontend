@@ -15,6 +15,18 @@ courier profile completion, documents, store association requests, and
 merchant approval per shop. Delivery jobs, order acceptance, earnings,
 and courier order access UI remain out of scope.
 
+### Latest update
+
+- Removed the pending-approval onboarding explanation, driving-licence
+  helper warning, and courier-role registration explanations requested by
+  the user.
+- Courier onboarding now preloads the map from the registration-saved
+  `UserProfile.latitude`/`longitude`; an existing courier service profile
+  still takes precedence, and Maputo remains the fallback.
+- Registration continues forwarding the selected role and coordinates
+  through OTP verification; only explanatory UI copy was removed.
+- Validation after this update: `npx tsc --noEmit` and `npm run lint`.
+
 ### Product decisions
 
 - A pending `CUSTOMER` with `requestedRole: COURIER` may complete the

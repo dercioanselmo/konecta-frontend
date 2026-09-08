@@ -34,8 +34,6 @@ function RegisterForm() {
   useDeviceLocationDefault(false, (lat, lng) => setPosition([lat, lng]));
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [selectedRequestedRole, setSelectedRequestedRole] = useState<RequestableRole | "">(initialRequestedRole);
-
   const {
     register,
     handleSubmit,
@@ -124,9 +122,7 @@ function RegisterForm() {
         <Select
           label="Quero registar-me como"
           defaultValue={initialRequestedRole}
-          {...register("requestedRole", {
-            onChange: (e) => setSelectedRequestedRole(e.target.value as RequestableRole | ""),
-          })}
+          {...register("requestedRole")}
         >
           <option value="">Cliente</option>
           {REQUESTABLE_ROLES.map((r) => (
@@ -135,18 +131,6 @@ function RegisterForm() {
             </option>
           ))}
         </Select>
-        <p className="-mt-2 text-xs text-muted">
-          Escolher Comerciante, Entregador ou Parceiro de Mobilidade cria a sua conta como Cliente enquanto o
-          pedido aguarda aprovação da administração.
-        </p>
-        {selectedRequestedRole === "COURIER" ? (
-          <p className="-mt-2 text-xs text-brand-orange">
-            A seguir ao registo, terá de completar o seu perfil de entregador — localização de base, meio de
-            transporte, documentos (BI, Carta de Condução ou Passaporte) e foto — antes da aprovação da
-            administração e de se poder associar a lojas.
-          </p>
-        ) : null}
-
         <div className="rounded-2xl border border-border bg-surface p-4">
           <PreferencesSection value={preferences} onChange={setPreferences} />
         </div>

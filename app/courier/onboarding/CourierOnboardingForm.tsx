@@ -37,8 +37,11 @@ export function CourierOnboardingForm({ user, pendingApproval }: { user: UserPro
   const [loading, setLoading] = useState(true);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
 
-  const [position, setPosition] = useState<[number, number]>(MAPUTO_DEFAULT);
-  const [hasSavedLocation, setHasSavedLocation] = useState(false);
+  const hasRegisteredLocation = user.latitude != null && user.longitude != null;
+  const [position, setPosition] = useState<[number, number]>(
+    hasRegisteredLocation ? [user.latitude!, user.longitude!] : MAPUTO_DEFAULT,
+  );
+  const [hasSavedLocation, setHasSavedLocation] = useState(hasRegisteredLocation);
   useDeviceLocationDefault(hasSavedLocation, (lat, lng) => setPosition([lat, lng]));
 
   const [transportType, setTransportType] = useState<TransportType>("WALK");
@@ -207,9 +210,7 @@ export function CourierOnboardingForm({ user, pendingApproval }: { user: UserPro
       <div>
         <h1 className="text-xl font-bold text-foreground">Concluir perfil de entregador</h1>
         <p className="mt-1 text-sm text-muted">
-          {pendingApproval
-            ? "Complete estes dados antes da aprovação — a administração e as lojas usam-nos para decidir."
-            : "Estes dados são necessários antes de se poder associar a lojas e receber encomendas."}
+          {!pendingApproval ? "Estes dados são necessários antes de se poder associar a lojas e receber encomendas." : null}
         </p>
       </div>
 
@@ -275,12 +276,6 @@ export function CourierOnboardingForm({ user, pendingApproval }: { user: UserPro
         {plateRequired ? (
           <div className="flex flex-col gap-2">
             <Input label="Matrícula do veículo" placeholder="AAB-123-MP" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} />
-            {!hasLicence ? (
-              <p className="text-xs text-amber-600">
-                Obrigatório: carregue também a Carta de Condução na secção de documentos abaixo — não é possível
-                guardar sem ela.
-              </p>
-            ) : null}
           </div>
         ) : null}
       </div>

@@ -15,6 +15,9 @@ import { ClientApiError } from "@/lib/auth/client";
 import { isTerminalOrderStatus } from "@/lib/checkout/orderStatus";
 import type { MerchantOrder } from "@/lib/orders/merchantTypes";
 import type { Order, OrderStatus } from "@/lib/checkout/types";
+import { listActiveShopCouriers, assignShopOrderCourier, scanCourierQr } from "@/lib/courier/ordersClient";
+import type { ActiveCourier } from "@/lib/courier/orderTypes";
+import { QrScanner } from "@/components/merchant/QrScanner";
 
 interface MerchantOrderDetailViewProps {
   shopId: string;
@@ -46,6 +49,9 @@ export function MerchantOrderDetailView({
   const [actionError, setActionError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderStatus[] | null>(null);
+  const [activeCouriers, setActiveCouriers] = useState<ActiveCourier[]>([]);
+  const [selectedCourierId, setSelectedCourierId] = useState("");
+  const [showCourierScan, setShowCourierScan] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -62,6 +68,11 @@ export function MerchantOrderDetailView({
   useEffect(() => {
     queueMicrotask(() => { load(); });
   }, [load]);
+
+  useEffect(() => {
+    if (!order || order.deliveryMode !== "DELIVERY" || order.status !== "READY_FOR_PICKUP") return;
+    listActiveShopCouriers(shopId).then(setActiveCouriers).catch(() => setActiveCouriers([]));
+  }, [order, shopId]);
 
   const runTransition = async (path: OrderStatus[]) => {
     setActionError(null);
@@ -97,6 +108,19 @@ export function MerchantOrderDetailView({
     if (!path) return;
     setPendingAction(null);
     await runTransition(path);
+  };
+
+  const assignCourier = async () => {
+    if (!selectedCourierId) return;
+    setActionError(null);
+    setUpdating("courier");
+    try {
+      setOrder(await assignShopOrderCourier(shopId, orderId, selectedCourierId));
+    } catch (err) {
+      setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atribuir o entregador.");
+    } finally {
+      setUpdating(null);
+    }
   };
 
   return (
@@ -170,6 +194,28 @@ export function MerchantOrderDetailView({
                   </Button>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {order.deliveryMode === "DELIVERY" && order.status === "READY_FOR_PICKUP" ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <h2 className="text-base font-semibold text-foreground">{order.courierId ? "Alterar entregador" : "Atribuir entregador"}</h2>
+              <div className="flex flex-wrap gap-2">
+                <select value={selectedCourierId} onChange={(e) => setSelectedCourierId(e.target.value)} className="h-10 min-w-52 rounded-xl border border-border bg-background px-3 text-sm text-foreground">
+                  <option value="">Selecione um entregador</option>
+                  {activeCouriers.map((courier) => <option key={courier.courierId} value={courier.courierId}>{courier.courierName} · {courier.phone}</option>)}
+                </select>
+                <Button type="button" disabled={!selectedCourierId} loading={updating === "courier"} onClick={() => void assignCourier()}>Atribuir</Button>
+              </div>
+            </div>
+          ) : null}
+
+          {order.deliveryMode === "DELIVERY" && order.status === "COURIER_ASSIGNED" && order.courierId ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <h2 className="text-base font-semibold text-foreground">Confirmar recolha do entregador</h2>
+              <p className="text-sm text-muted">Leia o código QR apresentado pelo entregador para confirmar que está a caminho.</p>
+              <Button type="button" variant="secondary" className="w-fit" onClick={() => setShowCourierScan((visible) => !visible)}>Ler QR do entregador</Button>
+              {showCourierScan ? <QrScanner paused={updating != null} onDecode={(qrCode) => { setUpdating("courier"); void scanCourierQr(shopId, orderId, qrCode).then(setOrder).catch((err) => setActionError(err instanceof ClientApiError ? err.message : "Código de entregador inválido.")).finally(() => setUpdating(null)); }} /> : null}
             </div>
           ) : null}
 

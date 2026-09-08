@@ -8,7 +8,81 @@
 
 ---
 
-## Current handoff — Courier onboarding + per-store approval
+## Current handoff — Courier orders and assignment
+
+**Status: integrated with the implemented Courier Service contract and validated on 2026-09-08.** This slice makes the courier dashboard the courier's home
+and covers available delivery orders, atomic self-assignment, assignment
+cancellation before pickup, courier-specific detail/QR, and merchant
+manual assignment. Delivery job execution beyond these status actions is
+not implemented as a general courier workflow.
+
+### Product decisions
+
+- Only `READY_FOR_PICKUP` orders with `deliveryMode: DELIVERY`, no assigned
+  courier, and a store where the courier association is `ACTIVE` appear in
+  the courier home list.
+- Self-assignment must be atomic and server-authoritative; a second courier
+  must receive a conflict and cannot claim the same order.
+- A courier may cancel their assignment only before `IN_TRANSIT`; the order
+  returns to `READY_FOR_PICKUP` and becomes available again.
+- Courier detail hides item unit prices, line totals, subtotal, fees, and
+  price summaries. It shows only the grand total amount, especially for
+  cash-on-delivery context.
+- A courier assignment QR is distinct from the customer's order QR. It is
+  shown only before `IN_TRANSIT` and disappears once the order is moving.
+- Merchant and staff can manually assign/reassign a courier from the shop
+  order detail. Backend authorization and transition checks remain final.
+
+### Proposed backend endpoints used by the frontend
+
+The copy-ready backend contract, organized by owning service, is in
+`API_REFERENCE_COURIER_ORDERS_BACKEND.md`.
+
+- `GET /api/v1/couriers/me/orders/available`
+- `GET /api/v1/couriers/me/orders/{orderId}`
+- `POST /api/v1/couriers/me/orders/{orderId}/assignment`
+- `DELETE /api/v1/couriers/me/orders/{orderId}/assignment`
+- `PATCH /api/v1/couriers/me/orders/{orderId}/status`
+- `POST /api/v1/couriers/me/orders/scan-customer-qr`
+- `GET /api/v1/merchant/shops/{shopId}/couriers/active`
+- `PATCH /api/v1/merchant/shops/{shopId}/orders/{orderId}/courier`
+- `POST /api/v1/merchant/shops/{shopId}/orders/{orderId}/scan-courier-qr`
+
+Assignment requests must reject already-assigned orders atomically with
+`409 ORDER_ALREADY_ASSIGNED`; all endpoints must scope access to active
+per-shop associations and validate status transitions server-side.
+
+### Frontend implementation target
+
+- `/courier` becomes the available/assigned order dashboard.
+- `/courier/orders/[orderId]` shows courier-safe detail, grand total,
+  status actions, and the dedicated courier QR.
+- Existing merchant order detail gains manual courier assignment.
+- Existing QR visual/scanner primitives are reused; no customer prices are
+  exposed in courier views.
+- Added the merchant active-courier BFF route used by the assignment
+  selector: `GET /api/merchant/shops/[shopId]/couriers/active`.
+- Integrated against `FRONTEND_COURIER_ORDERS_INTEGRATION_response.md`.
+  Courier cancellation now correctly handles the backend `204 No Content`
+  response and refetches the order; courier detail types contain no item
+  prices, line totals, subtotal, or delivery fee.
+
+### Validation
+
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+
+### Backend integration report
+
+The backend implementation report is recorded in
+`FRONTEND_COURIER_ORDERS_INTEGRATION_response.md`. The frontend uses the
+public Courier Service routes only; internal Orders Service routes are not
+called by the browser.
+
+---
+
+## Previous handoff — Courier onboarding + per-store approval
 
 **Status: implemented and validated on 2026-09-08.** This slice covers
 courier profile completion, documents, store association requests, and

@@ -6,6 +6,7 @@ import { isProfileComplete, mustChangePassword, isPendingCourierApplicant } from
 import { roleHomePath } from "@/lib/auth/roles";
 import { ROLE_LABELS } from "@/lib/auth/roleLabels";
 import { CourierShell } from "@/components/courier/CourierShell";
+import { CourierOrdersDashboard } from "./CourierOrdersDashboard";
 import { courierApiFetch, CourierServiceError } from "@/lib/courier/courierApi";
 import { TRANSPORT_LABELS, ASSOCIATION_STATUS_LABELS, type CourierProfile, type CourierShopAssociation } from "@/lib/courier/types";
 
@@ -47,7 +48,8 @@ export default async function CourierHomePage() {
 
   return (
     <CourierShell user={user}>
-      <div className="flex flex-col gap-6">
+      <CourierOrdersDashboard profileComplete={profile != null} />
+      <div className="mt-6 flex flex-col gap-6">
         {user.status === "PENDING" && user.requestedRole ? (
           <p className="rounded-xl bg-brand-orange/10 px-4 py-3 text-sm text-brand-orange">
             O seu pedido para se tornar {ROLE_LABELS[user.requestedRole]} está pendente de aprovação.

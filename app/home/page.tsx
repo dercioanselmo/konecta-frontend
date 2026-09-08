@@ -74,7 +74,7 @@ export default async function CustomerHomePage() {
       </main>
 
       <footer className="mt-10 border-t border-border pt-4 text-center">
-        <Link href="/login" className="text-xs text-muted underline-offset-4 hover:underline">
+        <Link href="/login?requestedRole=COURIER" className="text-xs text-muted underline-offset-4 hover:underline">
           Acesso para lojistas, entregadores e administração
         </Link>
       </footer>

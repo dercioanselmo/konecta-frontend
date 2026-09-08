@@ -1,16 +1,17 @@
-# Courier (Entregador) onboarding + store association — PROPOSED API contract
+# Courier (Entregador) onboarding + store association — API contract
 
-**Status: PROPOSED. Nothing here exists on any backend service yet.**
-Frontend is fully built against this contract (forms render, validate,
-and call these endpoints) — every call will fail with a connection/
-`ORDERS_API_BASE_URL`-style "not set" error, or a `404`/`500` from
-whatever the base URL happens to resolve to, until a real backend
-implements this. Scope: courier profile + documents + per-store
-association and approval, up to but **not including** how a courier
-receives/accepts job offers or interacts with an order — that's a
-separate, later slice per the request that introduced this ("implement
-until this profile validation, before I specify how he interacts with
-orders").
+**Status: FULLY LIVE, including §0's revision.** `KONECTA-COURIER-SERVICE`
+is implemented and live-verified end-to-end — every route in the
+OpenAPI spec matches this doc, `KONECTA-STORES-AND-STOCK-SERVICE`
+shipped §5's `categoryId`-optional change, and §0's auth relaxation
+(profile + documents reachable by a pending applicant, not just an
+already-approved courier) is live too, verified 2026-09-08 both via
+direct calls and through the actual running app. Scope: courier
+profile + documents + per-store association and approval, up to but
+**not including** how a courier receives/accepts job offers or
+interacts with an order — that's a separate, later slice per the
+request that introduced this ("implement until this profile
+validation, before I specify how he interacts with orders").
 
 A courier already exists as a platform `Role` (`COURIER`) — a customer
 can self-request it at registration (`requestedRole`), subject to
@@ -35,6 +36,47 @@ Auth: same JWT Bearer as every other service. A courier's own endpoints
 endpoints (`/api/v1/merchant/shops/{shopId}/couriers/**`) require
 `MERCHANT`/`MERCHANT_STAFF` (shopId claim match)/`ADMIN`, same rule as
 every other merchant-scoped endpoint in this project.
+
+---
+
+## 0. REVISION NEEDED (2026-09-08): profile + documents reachable before admin approval
+
+**Product decision, walking back part of the original design:** a
+courier applicant must complete their profile (base location,
+transport, plate, documents, photo) **before** the platform-level admin
+approval, not after — so the approval decision itself, and any later
+per-store approval, are made with the full picture from the start. The
+previous version of this doc assumed onboarding only happens once
+`role` is already `COURIER` (i.e. after admin approval); that's no
+longer the intended order.
+
+**Concretely**: `GET/PUT /api/v1/couriers/me` and every
+`/api/v1/couriers/me/documents/**` endpoint must accept a caller who is
+either:
+- `role: COURIER` (already approved — editing their profile later), **or**
+- `role: CUSTOMER` **and** `requestedRole: COURIER` **and**
+  `status: PENDING` (a pending applicant completing onboarding for the
+  first time, right after their first login).
+
+**Live now** (backend added a `CourierAccessGuard` that allows either a
+real `ROLE_COURIER`, or a live `GET /users/me` check — via the caller's
+own forwarded token — showing `role: CUSTOMER` /
+`requestedRole: COURIER` / `status: PENDING`; wired into the profile
+and document controllers in place of the old class-level
+`@PreAuthorize("hasRole('COURIER')")`). Re-verified 2026-09-08 against
+the same real pending account used to first catch the `403`: `PUT
+/couriers/me` now succeeds (`200`), document presign→upload→confirm
+succeeds (`201`), and `GET /couriers/me/shops` correctly **still**
+`403`s for that same token — store association
+(`/api/v1/couriers/me/shops/**`) is unaffected by this revision, as
+intended: it still requires the real `COURIER` role, since it
+represents actually working for a store, not just applying to become
+one. Same for the merchant-facing `/api/v1/merchant/shops/{shopId}/couriers/**`
+endpoints — no change there either. Confirmed through the actual
+running app too: logging in as that pending account landed on
+`/courier/onboarding` with no amber "couldn't load" banner, the
+previously-`PUT`-saved transport (`A pé`) and uploaded document (BI)
+both showing correctly.
 
 ---
 
@@ -294,3 +336,39 @@ Fully built against this contract:
 Not built (out of scope for this slice, per the request): job offers,
 accept/reject, earnings, delivery-in-progress flows — anything about
 how an *approved* courier actually works an order.
+
+---
+
+## Live verification (2026-09-08)
+
+Ran the full flow directly against the real service (bypassing the UI
+first, then again through the actual running app), using a real
+account temporarily promoted to `COURIER` and reverted immediately
+after:
+
+- `GET /couriers/me` on a fresh account → `404 COURIER_PROFILE_NOT_FOUND` ✅
+- `PUT /couriers/me` with `MOTORCYCLE` and no `plateNumber` →
+  `400 VALIDATION_ERROR` ("plateNumber: obrigatório para MOTORCYCLE ou
+  CAR"); with a plate → `200`, persisted ✅
+- Document presign → S3 PUT → confirm (`CARTA_CONDUCAO`) → `201`,
+  `fileUrl` resolved ✅
+- `POST /couriers/me/shops` before any `CARTA_CONDUCAO` on file →
+  blocked (`400 VALIDATION_ERROR`, "documents: carta de condução
+  necessária..."); after uploading one → `201 PENDING_STORE_APPROVAL`,
+  correct `distanceKm` ✅
+- Merchant-side `GET .../couriers` (list) and `GET .../couriers/{id}`
+  (detail, with `documents[]`) both correct ✅
+- `PATCH .../status`: approve (`PENDING_STORE_APPROVAL → ACTIVE`) ✅,
+  suspend (`ACTIVE → SUSPENDED`) ✅, invalid `SUSPENDED →
+  PENDING_STORE_APPROVAL` → `409 INVALID_TRANSITION` ✅, reactivate
+  (`SUSPENDED → ACTIVE`) ✅
+- Confirmed live through the actual Next.js app (not just curl): `/courier`
+  showed the real saved profile ("Mota · AAB-123-MP") and the real
+  association ("Supermercado Baoba — 0.0 km · Ativo"); `/courier/stores`
+  showed all four real shops with "Já associado" correctly disabled on
+  the one already joined.
+- Bonus confirmation: `GET /api/v1/shops` (Stores-and-Stock) without
+  `categoryId` now returns `200` with all active shops — §5's requested
+  change is live too, not just the new courier service.
+
+No remaining backend gaps on this feature.

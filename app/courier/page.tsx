@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getValidAccessToken } from "@/lib/auth/session";
-import { isProfileComplete, mustChangePassword } from "@/lib/auth/profile";
+import { isProfileComplete, mustChangePassword, isPendingCourierApplicant } from "@/lib/auth/profile";
+import { roleHomePath } from "@/lib/auth/roles";
 import { ROLE_LABELS } from "@/lib/auth/roleLabels";
 import { CourierShell } from "@/components/courier/CourierShell";
 import { courierApiFetch, CourierServiceError } from "@/lib/courier/courierApi";
@@ -13,7 +14,12 @@ export default async function CourierHomePage() {
   if (!user) redirect("/login?next=/courier");
   if (!isProfileComplete(user)) redirect("/complete-profile");
   if (mustChangePassword(user)) redirect("/change-password");
-  if (user.role !== "COURIER") redirect("/courier");
+  // A pending courier applicant must complete their profile before the
+  // admin approval that would actually flip their role to COURIER — send
+  // them straight to onboarding rather than a hub that assumes they're
+  // already approved.
+  if (isPendingCourierApplicant(user)) redirect("/courier/onboarding");
+  if (user.role !== "COURIER") redirect(roleHomePath(user.role));
 
   const accessToken = await getValidAccessToken();
   let profile: CourierProfile | null = null;

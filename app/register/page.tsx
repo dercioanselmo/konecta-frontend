@@ -21,6 +21,10 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
+  const requestedRoleParam = searchParams.get("requestedRole");
+  const initialRequestedRole = REQUESTABLE_ROLES.includes(requestedRoleParam as RequestableRole)
+    ? (requestedRoleParam as RequestableRole)
+    : "";
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>({
     deliveryPreference: null,
@@ -30,6 +34,8 @@ function RegisterForm() {
   useDeviceLocationDefault(false, (lat, lng) => setPosition([lat, lng]));
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [selectedRequestedRole, setSelectedRequestedRole] = useState<RequestableRole | "">(initialRequestedRole);
+
   const {
     register,
     handleSubmit,
@@ -37,7 +43,7 @@ function RegisterForm() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { city: "Maputo" },
+    defaultValues: { city: "Maputo", requestedRole: initialRequestedRole },
   });
 
   useEffect(() => {
@@ -80,7 +86,7 @@ function RegisterForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <Link href="/login" className="mb-6 flex items-center gap-3">
+      <Link href="/home" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Criar conta</h1>
       </Link>
@@ -115,7 +121,13 @@ function RegisterForm() {
           <LocationPicker latitude={position[0]} longitude={position[1]} onChange={(lat, lng) => setPosition([lat, lng])} />
         </div>
 
-        <Select label="Quero registar-me como" {...register("requestedRole")} defaultValue="">
+        <Select
+          label="Quero registar-me como"
+          defaultValue={initialRequestedRole}
+          {...register("requestedRole", {
+            onChange: (e) => setSelectedRequestedRole(e.target.value as RequestableRole | ""),
+          })}
+        >
           <option value="">Cliente</option>
           {REQUESTABLE_ROLES.map((r) => (
             <option key={r} value={r}>
@@ -127,6 +139,13 @@ function RegisterForm() {
           Escolher Comerciante, Entregador ou Parceiro de Mobilidade cria a sua conta como Cliente enquanto o
           pedido aguarda aprovação da administração.
         </p>
+        {selectedRequestedRole === "COURIER" ? (
+          <p className="-mt-2 text-xs text-brand-orange">
+            A seguir ao registo, terá de completar o seu perfil de entregador — localização de base, meio de
+            transporte, documentos (BI, Carta de Condução ou Passaporte) e foto — antes da aprovação da
+            administração e de se poder associar a lojas.
+          </p>
+        ) : null}
 
         <div className="rounded-2xl border border-border bg-surface p-4">
           <PreferencesSection value={preferences} onChange={setPreferences} />

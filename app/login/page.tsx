@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { loginSchema, type LoginFormValues } from "@/lib/auth/validation";
 import { login, setUserPreferences, setUserLocation, ClientApiError, ROLE_HOME_CLIENT, isGmailAddress } from "@/lib/auth/client";
-import { isProfileComplete } from "@/lib/auth/profile";
+import { isProfileComplete, isPendingCourierApplicant } from "@/lib/auth/profile";
 import type { DeliveryPreference, PaymentMethod } from "@/lib/auth/types";
 
 function LoginForm() {
@@ -23,6 +23,7 @@ function LoginForm() {
   const paymentMethod = searchParams.get("paymentMethod") as PaymentMethod | null;
   const latitude = searchParams.get("latitude");
   const longitude = searchParams.get("longitude");
+  const requestedRole = searchParams.get("requestedRole");
   const [formError, setFormError] = useState<string | null>(null);
   const [redirectingToGoogle, setRedirectingToGoogle] = useState(false);
 
@@ -53,6 +54,14 @@ function LoginForm() {
       }
       if (!isProfileComplete(user)) {
         router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");
+        return;
+      }
+      // A courier applicant must complete their profile (location,
+      // transport, documents, photo) before admin approval, not after —
+      // so the approval decision (and any later store-association review)
+      // is made with the full picture from the start.
+      if (isPendingCourierApplicant(user)) {
+        router.push("/courier/onboarding");
         return;
       }
       router.push(nextPath || ROLE_HOME_CLIENT[user.role]);
@@ -90,7 +99,7 @@ function LoginForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col justify-center px-6 py-8">
-      <Link href="/login" className="mb-6 flex items-center gap-3">
+      <Link href="/home" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Entrar</h1>
       </Link>
@@ -147,7 +156,10 @@ function LoginForm() {
 
       <p className="mt-6 text-center text-sm text-muted">
         Ainda não tem conta?{" "}
-        <Link href="/register" className="font-semibold text-foreground underline-offset-4 hover:underline">
+        <Link
+          href={requestedRole ? `/register?requestedRole=${requestedRole}` : "/register"}
+          className="font-semibold text-foreground underline-offset-4 hover:underline"
+        >
           Criar conta
         </Link>
       </p>

@@ -73,7 +73,7 @@ function VerifyOtpForm() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-1 flex-col px-6 py-8">
-      <Link href="/login" className="mb-6 flex items-center gap-3">
+      <Link href="/home" className="mb-6 flex items-center gap-3">
         <Logo size={40} />
         <h1 className="text-xl font-bold text-foreground">Confirmar código</h1>
       </Link>

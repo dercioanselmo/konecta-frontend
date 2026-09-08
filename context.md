@@ -891,6 +891,273 @@ overridden: staff should be visible/manageable by Admin too, matching
   already-complete backend contract.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
 
+## Round 50: Courier backend shipped and live-verified end-to-end, no frontend changes needed (2026-09-08)
+
+- `KONECTA-COURIER-SERVICE` is real and live — all 9 routes in its
+  OpenAPI spec match `API_REFERENCE_COURIER.md` exactly.
+  `KONECTA-STORES-AND-STOCK-SERVICE` also shipped the requested
+  `categoryId`-optional change to `GET /api/v1/shops`.
+- **Live-verified the whole chain**, temporarily promoting a real test
+  account to `COURIER` (reverted immediately after, same discipline as
+  Round 49): profile create/update with the `MOTORCYCLE`/`CAR` plate
+  validation (`400` without a plate, `200` with one); the full document
+  presign→S3-PUT→confirm flow; store association correctly **blocked**
+  without a `CARTA_CONDUCAO` document on file, then succeeding once one
+  existed; merchant-side list/detail-with-documents; every status
+  transition (approve, suspend, reactivate) plus the invalid one
+  correctly rejected (`409 INVALID_TRANSITION`). Then confirmed the
+  same through the actual running app (not just curl): `/courier`
+  showed the real saved profile and association, `/courier/stores`
+  correctly disabled "Associar-me" for the already-joined shop.
+- No frontend code changed — everything built in Round 49 was already
+  correct against this exact contract; this round was pure verification.
+- Cleaned up all test data afterward (withdrew the test association,
+  deleted the test document, reverted the account's role to `CUSTOMER`).
+- **No remaining backend gaps on this feature.**
+- `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).
+
+## Round 51: register defaults to Entregador from the "lojistas/entregadores" link; clarified what happens after (2026-09-08)
+
+- Two issues raised: (1) the "Acesso para lojistas, entregadores e
+  administração" link on `/home` didn't pre-select a role on the
+  register form, and (2) picking "Entregador" there silently registers
+  "like a normal customer" with no sign of the courier-specific fields
+  (photo/documents/transport/location) the user expected to see
+  immediately.
+- **Fix for (1)**: `requestedRole=COURIER` now rides through
+  `/home`'s link → `/login?requestedRole=COURIER` → `/register?requestedRole=COURIER`
+  (the "Criar conta" link on `/login` forwards whatever `requestedRole`
+  it received) → the register form's "Quero registar-me como" select
+  defaults to Entregador instead of Cliente.
+- **Fix for (2) is a clarification, not new data collection** — and
+  deliberately so: `requestedRole` at registration only marks the
+  *platform-level* role request (admin-approved later); the account's
+  real `role` stays `CUSTOMER` until approved, and only a genuine
+  `COURIER`-role account can call the courier-service endpoints (they
+  require `role: COURIER`) to save a photo/documents/location — there's
+  no session capable of doing that at registration time. So instead of
+  moving that data collection earlier (not technically possible without
+  a new anonymous-upload capability, which wasn't asked for), added an
+  inline notice that appears the moment "Entregador" is selected:
+  "Depois de aprovado, terá de completar o seu perfil de entregador —
+  localização de base, meio de transporte, documentos (BI, Carta de
+  Condução ou Passaporte) e foto — antes de se poder associar a lojas."
+  This replaces silent confusion with an accurate expectation — nothing
+  was hidden or broken, the flow just wasn't explained.
+- **Live-verified with a real registration**, not a mock: clicked the
+  `/home` link through to a pre-filled "Entregador" register form,
+  filled it with real data (a real email the user could check for the
+  OTP), submitted, received the real OTP from the user via chat,
+  verified it, logged in, and confirmed via the admin users API that
+  the resulting account is exactly as designed:
+  `role: CUSTOMER`, `status: PENDING`, `requestedRole: COURIER`, with
+  the pinned location (`latitude`/`longitude`) correctly carried through
+  the register → verify-otp → login relay from Round 48. Landed on
+  `/home` as a normal customer shell, pending admin approval — this is
+  the correct, existing behavior, not a bug. Left the account as-is
+  (a real pending request) rather than force-approving it, since
+  approving is the admin's call to make.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 52: courier onboarding moved to *before* admin approval, not after (2026-09-08)
+
+- Per explicit correction: "every field must be completed before
+  approved. The Store Manager needs all that fields to make decision."
+  Round 51's clarifying-notice approach wasn't enough — the actual
+  requirement is to collect the courier profile (base location,
+  transport, plate, documents, photo) as the literal "second screen"
+  right after registration, before the admin approval that flips
+  `role` to `COURIER`.
+- New `isPendingCourierApplicant(user)` in `lib/auth/profile.ts`:
+  `role === "CUSTOMER" && status === "PENDING" && requestedRole === "COURIER"`.
+- `app/login/page.tsx`: right after first login, a pending courier
+  applicant is routed straight to `/courier/onboarding` instead of
+  `/home` — this **is** the "second screen after Criar conta" the
+  request asked for (register's own form is untouched; the redirect
+  chain register → verify-otp → login already existed, this just adds
+  one more branch to where login sends them).
+- `/courier/onboarding` and `/courier` (hub) now accept
+  `isPendingCourierApplicant` in addition to `role === "COURIER"` —
+  fixed a real self-redirect bug found along the way in
+  `app/courier/page.tsx` (`redirect("/courier")` on wrong role would
+  have infinite-looped; now uses `roleHomePath(user.role)` like every
+  other role-gated page).
+- `CourierOnboardingForm.tsx` takes a `pendingApproval` prop: different
+  copy (explains this is pre-approval, not post), the button reads
+  "Guardar perfil" instead of "Guardar e escolher lojas", and — since
+  store association requires the real `COURIER` role a pending
+  applicant doesn't have yet — saving no longer redirects to
+  `/courier/stores` for them, it just confirms the save in place.
+- **This needs a real backend change**, documented as a new §0 in
+  `API_REFERENCE_COURIER.md`: `GET/PUT /api/v1/couriers/me` and the
+  `/documents/**` endpoints must accept a caller who is either
+  `role: COURIER` (already approved) **or** `role: CUSTOMER` +
+  `requestedRole: COURIER` + `status: PENDING` (applying). **Confirmed
+  live that this isn't in place yet** — a real pending account got
+  `403 ACCESS_DENIED` from both endpoints today (strict `role ==
+  COURIER` check). Store association and the merchant-side approval
+  endpoints are explicitly **not** part of this revision — those
+  correctly still require the real role.
+- **Live-verified the frontend half** against the same real pending
+  account from Round 51: logging in landed directly on
+  `/courier/onboarding` (not `/home`), showing the pending-approval
+  banner, the base-location map (still holding the location saved
+  during registration), and the rest of the form — confirmed the 403
+  from the not-yet-updated backend degrades cleanly (amber banner, form
+  still fillable) rather than crashing.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 53: §0's auth relaxation shipped and live-verified — courier onboarding fully unblocked (2026-09-08)
+
+- Backend added a `CourierAccessGuard`: lets a request through on a
+  real `ROLE_COURIER`, or on a live `GET /users/me` check (the
+  caller's own forwarded token) showing `role: CUSTOMER` /
+  `requestedRole: COURIER` / `status: PENDING` — wired into the profile
+  (`GET/PUT /couriers/me`) and document controllers, replacing the old
+  class-level `@PreAuthorize("hasRole('COURIER')")`.
+- **Re-verified against the same real pending account** from Rounds
+  51–52 (`dercio.miguel@yahoo.com`, still genuinely `CUSTOMER`/
+  `PENDING`/`requestedRole: COURIER`): `PUT /couriers/me` now `200`s
+  (was `403`), the full document presign→S3-PUT→confirm flow succeeds,
+  and `GET /couriers/me/shops` correctly **still** `403`s for the same
+  token — store association is untouched by this change, exactly as
+  scoped.
+- **Confirmed through the actual running app**: logged in as that
+  account, landed on `/courier/onboarding` with **no amber
+  "couldn't load" banner** this time (it loaded a real profile) —
+  transport showing `A pé` and the `BI` document both correctly
+  restored from the earlier direct-API test, proving the round-trip
+  works through the real UI, not just curl.
+- No frontend code changed — Round 52 already built the onboarding flow
+  correctly against this exact contract; this round was pure
+  verification once the backend shipped. Left the generic
+  service-unavailable fallback banner in the code (still a reasonable
+  safety net for a genuine outage) rather than deleting it — it just no
+  longer triggers for the pending-applicant case it was originally
+  covering.
+- Left the test account's saved progress (`A pé` transport, one `BI`
+  document, still pending admin approval) as real, valid data rather
+  than tearing it down — it's a legitimate example of "applicant mid-
+  onboarding," not throwaway clutter.
+- **No remaining backend gaps on this feature.**
+- `tsc --noEmit`, `eslint`, `npm run build` all clean (no code changed).
+
+## Round 54: logo on the auth pages now links to /home like everywhere else (2026-09-08)
+
+- Bug: the KONECTA logo on `/login`, `/register`, `/verify-otp`, and
+  `/set-password` linked to `/login` (or, on register/verify-otp,
+  effectively nowhere useful) instead of `/home` — inconsistent with
+  every other customer-facing header (`CustomerHeader.tsx` and
+  `complete-profile` already correctly go to `/home`/the user's role
+  home). Per the existing rule: logged-out or customer-role, the logo
+  always goes to `/home` (the categories page).
+- Fixed all four `<Link href="/login">` wrappers around the logo to
+  `<Link href="/home">`. `change-password`'s logo isn't a link at all
+  (static, no fix needed there) and `complete-profile`'s was already
+  correct (role-aware `ROLE_HOME_CLIENT[user.role]`).
+- Live-verified by clicking the logo on both `/login` and `/register` —
+  both now land on `/home`.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 55: register's courier notice updated for the before-approval flow; camera option added to the profile photo (2026-09-08)
+
+- The register form's "Entregador" notice still said "Depois de
+  aprovado, terá de completar..." — leftover from before Round 52 moved
+  onboarding to *before* approval. Reworded to "A seguir ao registo,
+  terá de completar... antes da aprovação da administração e de se
+  poder associar a lojas" — matches the actual (now live-verified)
+  order of operations.
+- New `components/ui/PhotoCaptureInput.tsx`: a "Tirar foto" (live
+  camera capture via plain `getUserMedia` + canvas snapshot, same
+  library-free approach as `QrScanner.tsx`) button alongside the
+  existing "Alterar foto" (plain file input) — both resolve to the same
+  `File` handed to the caller, so `CourierOnboardingForm.tsx`'s upload
+  logic didn't need to change, just the input source. Camera denial/
+  unavailability shows a clean error with a "Cancelar" back to the
+  two-button choice, not a crash.
+- Scoped to the courier profile photo only, per the request ("in the
+  Entregador profile") — not applied to other photo uploads (shop logo,
+  product photos, generic profile photo elsewhere) unless asked.
+- **Live-verified**: screenshotted the updated register notice; on
+  `/courier/onboarding`, confirmed both "Tirar foto"/"Alterar foto"
+  buttons render, clicking "Tirar foto" in a camera-less headless
+  browser shows the clean error + Cancelar, and Cancelar correctly
+  returns to the two-button idle state.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 56: photo capture collapsed to one button, upload as a fallback link inside it (2026-09-08)
+
+- Round 55's two-top-level-buttons ("Tirar foto" + "Alterar foto") was
+  a misread — corrected: `PhotoCaptureInput.tsx` now shows a single
+  "Alterar foto" button that opens the camera view; a "Carregar foto em
+  vez disso" text link sits next to Capturar/Cancelar inside that same
+  view for anyone who'd rather upload (or whose camera is denied/
+  unavailable) — not a second button competing for attention up front.
+- Live-verified: idle state shows exactly one button; opening it and
+  hitting the (expected, camera-less-browser) error still surfaces the
+  upload fallback link right there, same clean-degradation behavior as
+  before.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 57: photo capture mirrored, relabeled, reordered, and centered (2026-09-08)
+
+- Front camera preview was showing un-mirrored, which reads backwards
+  for a selfie/webcam shot — added `-scale-x-100` to the `<video>` and
+  mirrored the canvas draw in `capture()` too (`ctx.translate` +
+  `ctx.scale(-1, 1)` before `drawImage`), so the saved photo matches
+  what the person saw while framing it, same as every selfie camera and
+  webcam app.
+- Upload changed from a plain text link ("Carregar foto em vez disso")
+  to a real button labeled "Upload", reordered so the row reads
+  Capturar → Upload → Cancelar (cancel last).
+- Centered the whole "Foto de perfil" card (avatar stacked above the
+  button, not side-by-side) and the camera-view buttons/error text —
+  per the explicit ask to keep this whole little widget centered rather
+  than left-aligned.
+- Live-verified: avatar + "Alterar foto" button render centered at
+  rest; opening it and hitting the (expected, camera-less browser)
+  error shows the centered error text with Upload/Cancelar in that
+  order.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 58: photo preview enlarged, per-document "Adicionar" button folded into the main save, real dropzone, and the licence check made a hard block (2026-09-08)
+
+- **Photo preview was tiny after capture/upload** — the persistent
+  avatar was a small `h-20 w-20` circle while the camera view itself
+  was a much bigger 220px square, an odd size drop the moment a photo
+  landed. Made both the same shape and size (`aspect-square max-w-55
+  rounded-2xl`), so there's no jarring shrink between "taking it" and
+  "seeing it saved."
+- **Removed the standalone "Adicionar documento" button** — the
+  new-document mini-form (type/number/dates/place/file) no longer has
+  its own submit or its own network call. `handleSubmit` (the main
+  "Guardar perfil" button) now does it all in one go: saves the
+  profile, and — only if any of the document fields was touched, and
+  only once all of them are filled — uploads and creates that document
+  too, in the same click. Removed `handleAddDocument` and the
+  now-unneeded `addingDoc` state entirely.
+- **Real dropzone instead of a bare `<input type="file">`**: a dashed-
+  border clickable area with an upload icon, "Carregar documento" (or
+  the chosen filename), and "Imagem ou PDF" beneath — a native
+  `<button>` element so the pointer cursor and accessibility come for
+  free, no extra CSS needed for that part.
+- **Caught a real gap from Round 51 while re-verifying**: the
+  Mota/Carro → requires-Carta-de-Condução rule was only ever a soft
+  amber nudge, never an actual block — `handleSubmit` would happily
+  save a `CAR`/`MOTORCYCLE` profile with no licence on file. Added a
+  real blocking check (`plateRequired && !hasLicence` → `setSaveError`,
+  save aborted) right alongside the existing plate-number check, and
+  reworded the nudge from "também precisa" to an explicit "Obrigatório...
+  não é possível guardar sem ela."
+- **Live-verified all of it** against the same real pending account:
+  screenshotted the enlarged photo box and the new dropzone through the
+  real UI; selected Carro, filled a plate, left the licence unfilled,
+  clicked Guardar perfil, and confirmed the hard error now appears and
+  the save genuinely doesn't go through — then reverted the account's
+  transport back to `WALK` via a direct API call afterward to leave it
+  clean.
+- `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
 ## Round 49: Courier onboarding + store association built end-to-end (frontend), backend entirely PROPOSED (2026-09-07)
 
 - **New feature area**, biggest single addition so far: courier profile

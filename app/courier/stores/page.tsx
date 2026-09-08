@@ -10,11 +10,9 @@ export default async function CourierStoresPage() {
   if (!user) redirect("/login?next=/courier/stores");
   if (!isProfileComplete(user)) redirect("/complete-profile");
   if (mustChangePassword(user)) redirect("/change-password");
-  // A pending applicant can request store associations too — approval is
-  // per store, independent of the platform-level admin approval, and a
-  // store approving them is what actually matters operationally (see
-  // isPendingCourierApplicant's doc comment).
-  if (user.role !== "COURIER" && !isPendingCourierApplicant(user)) redirect(roleHomePath(user.role));
+  // Store association represents working for a shop and requires the
+  // platform-level COURIER role before a shop can approve the request.
+  if (user.role !== "COURIER") redirect(isPendingCourierApplicant(user) ? "/courier/onboarding" : roleHomePath(user.role));
 
   return (
     <CourierShell user={user}>

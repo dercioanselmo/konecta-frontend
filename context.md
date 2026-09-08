@@ -8,6 +8,70 @@
 
 ---
 
+## Current handoff — Courier onboarding + per-store approval
+
+**Status: implemented and validated on 2026-09-08.** This slice covers
+courier profile completion, documents, store association requests, and
+merchant approval per shop. Delivery jobs, order acceptance, earnings,
+and courier order access UI remain out of scope.
+
+### Product decisions
+
+- A pending `CUSTOMER` with `requestedRole: COURIER` may complete the
+  courier profile and upload documents before platform approval.
+- Store association requires the actual platform `COURIER` role.
+- Each shop owns its own association status:
+  `PENDING_STORE_APPROVAL`, `ACTIVE`, or `SUSPENDED`.
+- A merchant approving one shop does not approve the courier globally or
+  for any other shop. An `ACTIVE` association is the future gate for that
+  shop's courier capabilities.
+- No delivery/order UI is implemented yet.
+- Courier onboarding document helper copy was removed as requested; the
+  document controls and mandatory driving-licence validation remain.
+
+### Frontend implementation
+
+- Courier routes: `/courier`, `/courier/onboarding`, `/courier/stores`.
+- Courier BFF routes under `app/api/courier/**` handle profile,
+  documents, and own-shop associations.
+- Merchant BFF routes now exist under
+  `app/api/merchant/shops/[shopId]/couriers/**` for list, detail,
+  reject, approve, suspend, and reactivate operations.
+- `CourierStoresView` shows all requested/approved shops and their
+  per-shop statuses.
+- `CouriersList` lets merchant/staff users approve, reject, suspend, and
+  reactivate associations. Courier detail includes uploaded documents.
+- Pending applicants are redirected back to onboarding instead of trying
+  to request store association before platform approval.
+
+### Backend contract assumptions
+
+- `KONECTA-COURIER-SERVICE` is live at `COURIER_API_BASE_URL`.
+- Courier service supports profile/document access for pending applicants,
+  but only real `COURIER` users may use store-association endpoints.
+- Merchant courier endpoints enforce merchant ownership or matching
+  `MERCHANT_STAFF.shopId` server-side.
+- Stores-and-Stock `GET /api/v1/shops` accepts an omitted `categoryId` for
+  the all-shop courier picker.
+
+### Validation
+
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed.
+- `npm run build` passed and generated the courier merchant API/page routes.
+
+### Next session checks
+
+- Live-test a real courier: complete profile, confirm platform approval,
+  request Supermercado Baoba, and verify the merchant sees the pending
+  request.
+- Approve the request as the store merchant and verify the courier sees
+  `Ativo` for that shop only.
+- Verify a second shop remains independent and that reject/suspend/
+  reactivate transitions work against the live backend.
+
+---
+
 ## Current feature: My Profile + mustChangePassword gate + Merchant Staff CRUD
 
 **Status: built by AmazonQ (a different agent) in a session I wasn't part

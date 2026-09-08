@@ -289,7 +289,6 @@ export function CourierOnboardingForm({ user, pendingApproval }: { user: UserPro
       <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Documentos</h2>
-          <p className="text-sm text-muted">BI, Carta de Condução ou Passaporte — pode carregar mais do que um.</p>
         </div>
 
         {docError ? <p className="text-sm text-red-500">{docError}</p> : null}
@@ -317,15 +316,9 @@ export function CourierOnboardingForm({ user, pendingApproval }: { user: UserPro
               </div>
             ))}
           </div>
-        ) : (
-          <p className="text-sm text-muted">Ainda não carregou nenhum documento.</p>
-        )}
+        ) : null}
 
         <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <p className="text-xs text-muted">
-            Novo documento (opcional) — preenchido aqui, é guardado junto com o resto ao premir &ldquo;Guardar
-            perfil&rdquo; no fundo da página.
-          </p>
           <Select label="Tipo de documento" value={docType} onChange={(e) => setDocType(e.target.value as CourierDocumentType)}>
             {DOCUMENT_TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>

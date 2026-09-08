@@ -17,6 +17,18 @@ and courier order access UI remain out of scope.
 
 ### Latest update
 
+- Pending courier applicants can now open `/courier/stores` from the
+  Entregador panel instead of being redirected back to onboarding. This
+  lets them request a shop association before platform approval, so the
+  Store Admin has a pending row to review.
+- The device-location pattern remains active in onboarding: saved
+  registration coordinates are used when present; otherwise
+  `useDeviceLocationDefault` requests the device GPS and the map's Maputo
+  coordinate is only the immediate render fallback.
+- Backend follow-up: the Courier service must allow pending courier
+  applicants to call `GET/POST/DELETE /api/v1/couriers/me/shops/**`.
+  If it still enforces `ROLE_COURIER` there, the page opens but association
+  requests will return `403` and cannot reach Store Admin approval.
 - Removed the pending-approval onboarding explanation, driving-licence
   helper warning, and courier-role registration explanations requested by
   the user.
@@ -31,7 +43,8 @@ and courier order access UI remain out of scope.
 
 - A pending `CUSTOMER` with `requestedRole: COURIER` may complete the
   courier profile and upload documents before platform approval.
-- Store association requires the actual platform `COURIER` role.
+- Pending courier applicants may request store associations before the
+  platform role approval; each store can then review that request.
 - Each shop owns its own association status:
   `PENDING_STORE_APPROVAL`, `ACTIVE`, or `SUSPENDED`.
 - A merchant approving one shop does not approve the courier globally or
@@ -53,14 +66,14 @@ and courier order access UI remain out of scope.
   per-shop statuses.
 - `CouriersList` lets merchant/staff users approve, reject, suspend, and
   reactivate associations. Courier detail includes uploaded documents.
-- Pending applicants are redirected back to onboarding instead of trying
-  to request store association before platform approval.
+- Pending applicants can open `/courier/stores` and request associations;
+  approved couriers use the same screen to manage their store requests.
 
 ### Backend contract assumptions
 
 - `KONECTA-COURIER-SERVICE` is live at `COURIER_API_BASE_URL`.
-- Courier service supports profile/document access for pending applicants,
-  but only real `COURIER` users may use store-association endpoints.
+- Courier service supports profile, document, and store-association access
+  for pending courier applicants; store-side approval remains per shop.
 - Merchant courier endpoints enforce merchant ownership or matching
   `MERCHANT_STAFF.shopId` server-side.
 - Stores-and-Stock `GET /api/v1/shops` accepts an omitted `categoryId` for

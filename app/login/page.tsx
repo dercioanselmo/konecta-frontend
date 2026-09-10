@@ -52,6 +52,7 @@ function LoginForm() {
       if (latitude && longitude) {
         await setUserLocation(Number(latitude), Number(longitude)).catch(() => {});
       }
+      
       // An approved courier is routed through the courier-service profile
       // and shop-association gates, not the generic customer profile gate.
       // Otherwise one missing generic profile field traps an approved

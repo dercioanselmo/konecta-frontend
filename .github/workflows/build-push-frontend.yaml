@@ -12,6 +12,7 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: konecta/konecta-frontend
+  AWS_ACCOUNT_ID1: 564956047797
 
 jobs:
   build-and-push:
@@ -23,14 +24,14 @@ jobs:
           echo "Repository          : ${{ github.repository }}"
           echo "Repository owner    : ${{ github.repository_owner }}"
           echo "Ref                 : ${{ github.ref }}"
-          echo "AWS_ACCOUNT_ID      : ${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "AWS_ACCOUNT_ID      : ${{ env.AWS_ACCOUNT_ID1 }}"
           echo "Role that will be assumed:"
-          echo "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-oidc-role-Konecta"
+          echo "arn:aws:iam::${{ env.AWS_ACCOUNT_ID1 }}:role/github-actions-oidc-role-Konecta"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-oidc-role-Konecta
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID1 }}:role/github-actions-oidc-role-Konecta
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR

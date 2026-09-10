@@ -3,35 +3,27 @@ name: Build and Push Frontend to ECR
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
 
 permissions:
-  id-token: write
+  id-token: write   # Required for OIDC
   contents: read
 
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: konecta/konecta-frontend
-  AWS_ACCOUNT_ID1: 564956047797
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Debug info
-        run: |
-          echo "Repository          : ${{ github.repository }}"
-          echo "Repository owner    : ${{ github.repository_owner }}"
-          echo "Ref                 : ${{ github.ref }}"
-          echo "AWS_ACCOUNT_ID      : ${{ env.AWS_ACCOUNT_ID1 }}"
-          echo "Role that will be assumed:"
-          echo "arn:aws:iam::${{ env.AWS_ACCOUNT_ID1 }}:role/github-actions-oidc-role-Konecta"
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID1 }}:role/github-actions-oidc-role-Konecta
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-oidc-role-Konecta
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -39,20 +31,30 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Define image tags
+        id: vars
         run: |
           SHA_TAG=sha-${GITHUB_SHA::7}
           IMAGE_BASE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}"
           echo "SHA_TAG=$SHA_TAG" >> $GITHUB_ENV
           echo "IMAGE_BASE=$IMAGE_BASE" >> $GITHUB_ENV
           echo "TAGS=latest $SHA_TAG" >> $GITHUB_ENV
+          echo "Using tags: latest and $SHA_TAG"
 
       - name: Build Docker image
-        run: docker build -t $IMAGE_BASE:$SHA_TAG .
+        run: |
+          docker build -t $IMAGE_BASE:$SHA_TAG .
 
-      - name: Tag and push
+      - name: Tag and push Docker images
         run: |
           docker tag $IMAGE_BASE:$SHA_TAG $IMAGE_BASE:latest
           for tag in $TAGS; do
-            echo "Pushing $IMAGE_BASE:$tag"
-            docker push $IMAGE_BASE:$tag
+            IMAGE_URI="$IMAGE_BASE:$tag"
+            echo "Pushing $IMAGE_URI"
+            docker push $IMAGE_URI
           done
+
+      - name: Summary
+        run: |
+          echo "Successfully pushed:"
+          echo "  - $IMAGE_BASE:latest"
+          echo "  - $IMAGE_BASE:$SHA_TAG"

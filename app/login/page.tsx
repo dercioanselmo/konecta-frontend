@@ -60,6 +60,7 @@ function LoginForm() {
         router.push(nextPath ? `/complete-profile?next=${encodeURIComponent(nextPath)}` : "/complete-profile");
         return;
       }
+      
       // A courier applicant must complete their profile (location,
       // transport, documents, photo) before admin approval, not after —
       // so the approval decision (and any later store-association review)

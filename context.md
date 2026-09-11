@@ -8,6 +8,29 @@
 
 ---
 
+## Infra aside (2026-09-11): K8s readiness probe — added `/actuator/health*`
+
+Unrelated to the courier feature below. User's K8s deployment manifest
+for this frontend was copy-pasted from a Java/Spring Boot service
+template — `JAVA_OPTS` env var, `readinessProbe` hitting
+`/actuator/health/readiness`, `prometheus.io/path: /actuator/prometheus`.
+None of that is a Next.js concept; nothing here previously answered
+those paths, so the readiness probe would have failed forever and stuck
+the rollout. Added `app/actuator/health/route.ts`,
+`app/actuator/health/readiness/route.ts`, and
+`app/actuator/health/liveness/route.ts` — each just returns `200
+{"status":"UP"}` with no auth (confirmed `proxy.ts`'s matcher lets
+`/actuator/*` through unauthenticated) and no backend-reachability
+checks (deliberate — this is a stateless BFF; a single downstream
+microservice hiccup shouldn't flip the frontend pod to NotReady). This
+unblocks the manifest with zero infra changes needed. User chose **not**
+to stub `/actuator/prometheus` this round — nothing currently collects
+metrics, and wiring up `prom-client` is a separate task if asked for
+later. Verified live (`curl` against the dev server) and via
+`npm run build` (all three routes registered, clean build).
+
+---
+
 ## Current handoff — Courier orders and assignment
 
 ### Round 2026-09-11: restated request review
@@ -94,6 +117,14 @@ Picked up a session-transfer review request covering three items:
      test order `604bfe83-1a01-491c-bfb8-b2e92ecf7955` (Supermercado
      Baoba, courier `f78099d2-2722-4c0c-9089-fc0ccd908cdb` / "Dercio4
      Anselmo4"), now in its correct terminal `DELIVERED` state.
+   - **Follow-up: user still couldn't find the orders UI live — nav
+     label bug, not a missing feature.** The order list genuinely
+     renders on `/courier` (verified in the live server-rendered HTML —
+     "As suas entregas" and "Encomendas disponíveis" both present), but
+     `CourierShell.tsx`'s nav tab pointing there was labeled **"Perfil"**
+     — nothing signaled that this tab held the order dashboard. Renamed
+     it to **"Início"** (`components/courier/CourierShell.tsx`). No
+     other change — the dashboard itself was already correct.
 - `npx tsc --noEmit` and `npm run lint` both clean after this change.
 
 ---

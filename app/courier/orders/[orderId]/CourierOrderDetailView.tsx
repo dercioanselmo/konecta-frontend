@@ -22,7 +22,6 @@ export function CourierOrderDetailView({ orderId }: { orderId: string }) {
   if (!order) return <p className="text-sm text-muted">A carregar encomenda…</p>;
 
   const canCancel = order.courierId != null && order.status === "COURIER_ASSIGNED";
-  const canStart = order.status === "COURIER_ASSIGNED";
   const canComplete = order.status === "IN_TRANSIT" && customerQrValidated;
 
   const run = async (action: () => Promise<CourierOrder | void>) => {
@@ -35,13 +34,12 @@ export function CourierOrderDetailView({ orderId }: { orderId: string }) {
       <Link href="/courier" className="text-sm text-muted hover:underline">← Encomendas</Link>
       <div><p className="text-sm text-muted">Encomenda</p><h1 className="text-xl font-bold text-foreground">#{order.orderId.slice(0, 8)} · {order.storeName}</h1><p className="mt-1 text-sm text-muted">{ORDER_STATUS_LABELS[order.status] ?? order.status}</p></div>
       <div className="rounded-2xl border border-border bg-surface p-4"><OrderStatusRoadmap status={order.status} deliveryMode="DELIVERY" /></div>
-      {order.courierQrCode && order.status === "COURIER_ASSIGNED" ? <div className="rounded-2xl border border-border bg-surface p-4"><OrderQrCode qrCode={order.courierQrCode} size={220} /></div> : null}
+      {order.courierQrCode && order.status === "COURIER_ASSIGNED" ? <div className="rounded-2xl border border-border bg-surface p-4"><OrderQrCode qrCode={order.courierQrCode} size={220} /><p className="mt-2 text-xs text-muted">Mostre este código à loja para confirmarem a recolha e avançar para &quot;A caminho&quot;.</p></div> : null}
       <div className="rounded-2xl border border-border bg-surface p-4 text-sm"><p className="font-semibold text-foreground">Entrega</p><p className="mt-1 text-muted">Cliente: {order.customerName}</p>{order.deliveryAddress ? <p className="mt-1 text-muted">{order.deliveryAddress.address}, {order.deliveryAddress.neighborhood}, {order.deliveryAddress.city}</p> : null}<p className="mt-1 text-muted">Contacto: {order.contactPhone}</p><p className="mt-2 font-semibold text-foreground">Valor a receber: {order.total.toFixed(2)} MT</p></div>
       <div className="rounded-2xl border border-border bg-surface p-4"><p className="font-semibold text-foreground">Artigos</p><div className="mt-2 flex flex-col gap-2 text-sm">{order.items.map((item) => <div key={item.productId} className="flex justify-between gap-3"><span className="text-foreground">{item.quantity} × {item.name}</span><span className="text-muted">Sem preços</span></div>)}</div></div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         {canCancel ? <Button type="button" variant="secondary" loading={busy} onClick={() => void run(() => cancelCourierAssignment(orderId))}>Cancelar atribuição</Button> : null}
-        {canStart ? <Button type="button" loading={busy} onClick={() => void run(() => updateCourierOrderStatus(orderId, "IN_TRANSIT"))}>A caminho</Button> : null}
         {order.status === "IN_TRANSIT" && !customerQrValidated ? <Button type="button" loading={busy} onClick={() => setScannerOpen((open) => !open)}>Ler QR do cliente</Button> : null}
         {canComplete ? <Button type="button" loading={busy} onClick={() => void run(() => updateCourierOrderStatus(orderId, "DELIVERED"))}>Confirmar entrega</Button> : null}
       </div>

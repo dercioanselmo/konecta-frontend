@@ -10,6 +10,94 @@
 
 ## Current handoff — Courier orders and assignment
 
+### Round 2026-09-11: restated request review
+
+Picked up a session-transfer review request covering three items:
+
+1. **Merchant courier detail map/distance/address** — already fully
+   implemented (`CourierDetailView.tsx` + `CourierBaseLocationMap.tsx`),
+   no changes needed. Still gated on the live backend returning
+   `baseLatitude`/`baseLongitude`/`baseAddress`.
+2. **Entregadores tab defaults to Ativos + Pendentes shows a count** —
+   already implemented in `CouriersList.tsx` (`TABS` starts with
+   `ACTIVE`, initial `tab` state is `"ACTIVE"`, the Pendentes button
+   label appends a live count). No changes needed.
+3. **Courier can't see the Orders UI after approval** — the full
+   dashboard/detail/assign/cancel/QR flow was already built (matches the
+   "validated" status in the previous handoff below), but the user
+   reported it not working live. Could not reproduce — no backend
+   service was reachable on this machine (ports 8091-8096 all down) to
+   test with the real courier/merchant accounts. **Found and fixed one
+   real spec deviation while reviewing**: `CourierOrderDetailView.tsx`
+   had a courier-facing "A caminho" button that let the courier PATCH
+   the order straight to `IN_TRANSIT` himself — bypassing the required
+   merchant-scans-his-QR step. Per the user's restated flow, only the
+   merchant/staff scanning the courier's QR (`scanCourierQr`, already
+   correct in `MerchantOrderDetailView.tsx`) should move the order to
+   `IN_TRANSIT`. Removed the courier's self-service button and the
+   `canStart` state; added a hint line under the courier's QR
+   ("Mostre este código à loja..."). `updateCourierOrderStatus` is now
+   only called by the courier client for `DELIVERED` (after scanning the
+   customer's QR). Documented as a frontend amendment in
+   `FRONTEND_COURIER_ORDERS_INTEGRATION_response.md` rather than editing
+   the original delivered contract transcript — the backend endpoint/
+   transition table can stay as-is, it's just no longer called by the UI
+   for that step.
+   - **Root cause of "approved courier sees no orders" — found and
+     confirmed live, not a frontend bug.** There are **two independent
+     approvals** (per this file's earlier Courier onboarding handoff):
+     the platform-wide `COURIER` role (Admin, via
+     `POST /api/admin/users/{id}/approve`) and the per-shop association
+     (Merchant/Staff, already built). The user had only granted the
+     **per-shop** approval — the courier's platform role was still
+     `CUSTOMER`/`status: PENDING`/`requestedRole: COURIER`. Verified live:
+     `GET /courier` 307-redirected that account to `/courier/onboarding`
+     (`isPendingCourierApplicant` correctly catches this — by design, a
+     pending applicant never reaches the order dashboard, regardless of
+     shop association or available orders). After approving the same
+     account's platform role as Admin, `/courier` loaded normally and
+     `GET /api/courier/orders/available` returned data. **No frontend
+     change needed for this part** — the gate was working exactly as
+     designed; the account simply hadn't cleared both approvals yet.
+   - **Full live round-trip, verified working end-to-end**: created a
+     real `DELIVERY`-mode order for Supermercado Baoba (temporarily
+     widening Friday's opening hours to place it while genuinely
+     outside hours, then reverting them immediately after), progressed
+     it through `STORE_CONFIRMED → PREPARING → READY_FOR_PICKUP` as the
+     shop owner, confirmed it appeared in the now-approved courier's
+     "Encomendas disponíveis", self-assigned it (disappeared from
+     availability immediately, `courierQrCode` generated), had the
+     merchant scan that QR (`POST .../scan-courier-qr` → order moved to
+     `IN_TRANSIT`, confirming the self-service-button removal above is
+     correct — the merchant scan is what drives this step), then had
+     the courier scan the customer's QR
+     (`POST /api/v1/couriers/me/orders/scan-customer-qr` → succeeded).
+   - **Genuine backend bug found, reported, and now RESOLVED same-day.**
+     The final step, `PATCH /api/v1/couriers/me/orders/{orderId}/status`
+     with `{"status":"DELIVERED"}`, returned `500 INTERNAL_ERROR` from
+     `KONECTA-COURIER-SERVICE` every time — reproduced twice directly
+     against port 8096. Root cause per the backend team: the service's
+     `OrdersClient` Feign client had no HTTP client configured, so it
+     fell back to JDK `HttpURLConnection`, which doesn't support `PATCH`
+     — every other courier-order call (POST/DELETE/GET) worked, only
+     this one status-update PATCH ever hit it. Fixed by adding
+     `io.github.openfeign:feign-hc5` to `konecta-courier-service/pom.xml`.
+     Backend re-verified live: the exact repro call now returns `200
+     DELIVERED`, `orders` and `order_status_history` both show the clean
+     `IN_TRANSIT -> DELIVERED` transition. No frontend change was
+     needed — full write-up in
+     `FRONTEND_COURIER_ORDERS_INTEGRATION_response.md`'s "Bug report"
+     section.
+   - **Net result: the entire courier order lifecycle (available list →
+     self-assign → merchant QR scan → customer QR scan → delivered) is
+     now confirmed working end-to-end against the real backend**, using
+     test order `604bfe83-1a01-491c-bfb8-b2e92ecf7955` (Supermercado
+     Baoba, courier `f78099d2-2722-4c0c-9089-fc0ccd908cdb` / "Dercio4
+     Anselmo4"), now in its correct terminal `DELIVERED` state.
+- `npx tsc --noEmit` and `npm run lint` both clean after this change.
+
+---
+
 **Status: integrated with the implemented Courier Service contract and validated on 2026-09-08.** This slice makes the courier dashboard the courier's home
 and covers available delivery orders, atomic self-assignment, assignment
 cancellation before pickup, courier-specific detail/QR, and merchant

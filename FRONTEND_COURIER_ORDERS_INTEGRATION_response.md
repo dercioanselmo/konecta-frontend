@@ -175,6 +175,8 @@ IN_TRANSIT -> DELIVERED
 
 The response is the updated courier-safe order detail. The frontend should not optimistically move to the next state until the request succeeds.
 
+**Frontend amendment (2026-09-11): the UI no longer sends `COURIER_ASSIGNED -> IN_TRANSIT` from this endpoint.** Per product decision, a courier must never self-advance to "A caminho" — that transition only happens when the merchant/staff scans the courier's QR (`POST .../scan-courier-qr`, below). Leave the transition table on the backend as-is (harmless if it still accepts it), but the courier UI's own status button for this step was removed; only `IN_TRANSIT -> DELIVERED` (after scanning the customer's QR) is still sent by the courier client.
+
 ### Scan the customer's QR code
 
 ```http
@@ -436,3 +438,45 @@ The current Courier Service implementation was validated with:
 ```
 
 The Orders Service must still provide the corresponding internal atomic operations and enforce transaction-level assignment/status rules. The browser should never depend on those internal implementation details.
+
+## Bug report (2026-09-11): `DELIVERED` transition 500s — RESOLVED
+
+**Fixed and confirmed by the backend team, 2026-09-11.** Root cause:
+`courier-service`'s `OrdersClient` Feign client had no HTTP client
+configured, so it defaulted to JDK `HttpURLConnection`, which doesn't
+support `PATCH` — every other courier-order call (POST/DELETE/GET)
+worked, only the status-update PATCH ever hit this. Fix: added
+`io.github.openfeign:feign-hc5` to `konecta-courier-service/pom.xml` so
+Spring Cloud OpenFeign backs the client with Apache HttpClient5 instead.
+Backend verified live: repro call now returns `200 DELIVERED`, and both
+the `orders` table and `order_status_history` show a clean
+`IN_TRANSIT -> DELIVERED` row attributed to the courier for order
+`604bfe83-1a01-491c-bfb8-b2e92ecf7955`. No frontend change was needed —
+the request/response contract was already correct. Original report kept
+below for reference.
+
+### Original report
+
+Live-verified a full round trip against the real running services
+(ports 8091-8096) with real test accounts: checkout → status walk to
+`READY_FOR_PICKUP` → courier self-assign → merchant scans courier QR
+(`IN_TRANSIT`, correct) → courier scans customer QR (succeeds) →
+courier confirms delivery. The last step fails:
+
+```http
+PATCH /api/v1/couriers/me/orders/{orderId}/status
+Content-Type: application/json
+
+{ "status": "DELIVERED" }
+```
+
+Returns `500 INTERNAL_ERROR` every time (reproduced twice, hitting
+`KONECTA-COURIER-SERVICE` on `:8096` directly, not through the Next.js
+BFF — so this is not a proxy/serialization issue on the frontend side).
+The order is left cleanly at `IN_TRANSIT` (no partial/corrupted state),
+it just can't be advanced further from the courier side. Repro data:
+order `604bfe83-1a01-491c-bfb8-b2e92ecf7955` (shop "Supermercado
+Baoba", courier `f78099d2-2722-4c0c-9089-fc0ccd908cdb`), left in this
+state intentionally for backend debugging. Every other endpoint in this
+document was exercised successfully in the same live session — this is
+the one open item.

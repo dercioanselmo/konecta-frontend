@@ -17,6 +17,11 @@ const URGENT_STATUS_MODES: Partial<Record<OrderStatus, DeliveryMode[] | null>> =
   STORE_CONFIRMED: null,
   PREPARING: null,
   READY_FOR_PICKUP: ["DELIVERY"],
+  // Only reachable for DELIVERY orders in the first place, but listed
+  // explicitly (not `null`) for the same reason as READY_FOR_PICKUP above.
+  // A stalled hand-off (entregador assigned but never shows up at the
+  // store) is exactly the kind of stuck state this badge exists to surface.
+  COURIER_ASSIGNED: ["DELIVERY"],
 };
 
 /**

@@ -1,15 +1,18 @@
 # QR code pickup/delivery confirmation — API contract
 
-**Status: §1 fully live. §2's target status needs a revision — see
-"REVISION NEEDED" below.** `KONECTA-CHECKOUT-SERVICE` (qrCode
-generation at order-creation time) and `KONECTA-ORDERS-SERVICE` (read
-side + `complete-by-qr`'s resolve/shop-check/error handling) are
+**Status: §1 and §2's revision both fully live (2026-09-14 — see
+"REVISION NEEDED", now RESOLVED, below).** `KONECTA-CHECKOUT-SERVICE`
+(qrCode generation at order-creation time) and `KONECTA-ORDERS-SERVICE`
+(read side + `complete-by-qr`'s resolve/shop-check/error handling) are
 implemented and live-verified end-to-end — a real checkout produces a
-real token, Orders reads back the identical token. What's now changing
-is **where `complete-by-qr` lands the order**: not the terminal status
-(`PICKED_UP`/`DELIVERED`) as originally built and verified, but the
-last **store-side** status (`READY_FOR_PICKUP`) instead — see the
-revision below for why.
+real token, Orders reads back the identical token. `complete-by-qr`
+now lands on the last **store-side** status (`READY_FOR_PICKUP`)
+instead of jumping to terminal — this had been documented as needed
+since 2026-09-07 but was never actually implemented until a live bug
+report (staff testing order pickup/courier hand-off) surfaced that the
+backend was still on the old terminal-jump behavior. See the resolved
+section below for exactly what shipped, including one addition beyond
+the original ask (courier-code recognition).
 
 ---
 
@@ -91,7 +94,7 @@ token itself**, then its `storeId` is checked against the path's
 
 ---
 
-### REVISION NEEDED (2026-09-07): target status changes from terminal to `READY_FOR_PICKUP`
+### REVISION NEEDED (2026-09-07) — RESOLVED 2026-09-14: target status changes from terminal to `READY_FOR_PICKUP`
 
 The original version of this endpoint (built, shipped, and
 live-verified working exactly as spec'd) jumped straight to the order's
@@ -125,6 +128,25 @@ The endpoint name/route (`complete-by-qr`) is left as-is despite no
 longer "completing" anything — a rename is a bigger churn than the
 behavior change itself and isn't requested; flagging the naming
 mismatch here so nobody's confused reading the code cold.
+
+**Shipped 2026-09-14** (`MerchantOrderService.completeByQr`,
+`konecta-order-service`), exactly as designed above, plus one addition
+found while fixing a live bug report: the endpoint now resolves a
+scanned code against **either** `orders.qr_code` (customer) **or**
+`orders.courier_qr_code` (courier hand-off) —
+`OrderRepository.findByQrCodeOrCourierQrCode`. A courier-code match
+does **not** advance status at all (that transition is
+`MerchantOrderService.scanCourierQr`'s job, unchanged); it just resolves
+and returns the order so a merchant who scans it through this generic
+endpoint lands on the right order instead of `404
+ORDER_NOT_FOUND` (a real incident: MERCHANT_STAFF testing order
+`dd31ed75` pointed this scanner at the entregador's QR and got
+"Pedido não encontrado", because the old `findByQrCode` only ever
+matched the customer column). Live-verified: scanning a courier code
+returns `200` with status unchanged; scanning a customer code on a
+`PREPARING` order advances it to `READY_FOR_PICKUP` and re-scanning is
+a no-op; the dedicated `scanCourierQr` flow (COURIER_ASSIGNED →
+IN_TRANSIT) still works unchanged through the courier-service proxy.
 
 ---
 

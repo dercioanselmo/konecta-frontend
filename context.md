@@ -1839,3 +1839,156 @@ overridden: staff should be visible/manageable by Admin too, matching
   and the order-detail one (Round 40) in place — the FAB is additive,
   not a replacement; both remain useful in their own context.
 - `tsc --noEmit`, `eslint`, `npm run build` all clean.
+
+## Round 59: courier-assignment PATCH exploit fixed + corrupted order row repaired (2026-09-14, backend: `konecta-order-service`)
+
+- **Real bug, from `API_REFERENCE_MERCHANT_ORDERS.md`'s own documented
+  2026-09-12 follow-up** (never actually fixed until now): the generic
+  `PATCH .../orders/{orderId}/status` accepted `{"status":
+  "COURIER_ASSIGNED"}` directly on a `READY_FOR_PICKUP` DELIVERY order,
+  bypassing the real courier-assignment endpoints entirely and
+  committing a row with `courierId: null` — a broken, unassignable
+  "assigned" order. Real, live, currently-committed instance:
+  order `05fe2d93-1a7d-4975-a845-426fc532f9d8` (shop "Loja Teste E2E
+  2"), exactly as the doc's follow-up note described.
+- **Fix**: `MerchantOrderTransitions.canTransition` — `READY_FOR_PICKUP
+  -> COURIER_ASSIGNED` is no longer reachable through this generic
+  endpoint for any delivery mode. Real assignment still works via
+  `PATCH .../courier-assignment` (merchant picks a courier) and
+  `POST /api/v1/couriers/me/orders/{orderId}/assignment` (courier
+  self-assign) — both set `courierId` and status together, atomically.
+- **Live-verified**: restarted the service with the fix, drove a real
+  DELIVERY order to `READY_FOR_PICKUP`, confirmed the exploit PATCH now
+  `409 INVALID_TRANSITION` (previously `200`), and confirmed the
+  legitimate `courier-assignment` endpoint still works normally.
+- **Data fix** (direct SQL, user-authorized): reverted the corrupted
+  order `05fe2d93…` back to `READY_FOR_PICKUP` (its `courierId` was
+  already null, so nothing to preserve) and logged the correction in
+  `order_status_history`. Also cleaned up a test order
+  (`210214b0-34ae-4467-92bf-33e1d80806fd`) used to verify the fix, back
+  to its original `PAID` state.
+- No frontend changes needed for this round.
+
+## Round 60: courier UI overhaul, urgency-badge gap, and the "QR scan jumps to Entregue" bug — finally shipped, 8 days after Round 44 documented it (2026-09-14)
+
+Picked up a real multi-part live-test report from the user testing as
+MERCHANT_STAFF/entregador. Several items traced back to gaps this
+context file had actually already flagged — see notes below.
+
+**1. Courier ("Entregador") layout restructured** — main UI is now
+Orders, profile and stores got their own tabs, per explicit ask:
+- `CourierShell.tsx`'s nav is now **Encomendas | Lojas | Perfil** (was
+  Início | Lojas, with profile/shops summary cards crammed onto Início).
+- New `app/courier/profile/page.tsx` — the profile card (photo, name,
+  transport type, "Editar →") moved here from the home page.
+- `app/courier/page.tsx` simplified to just the orders dashboard (still
+  does the same profile/shops fetch server-side, only for the
+  `profileComplete` gate — no longer renders any of that data inline).
+
+**2. Order-detail items list (entregador view)** —
+`CourierOrderDetailView.tsx`: removed the "Sem preços" placeholder text
+(the no-pricing rule was already correctly enforced — couriers never
+saw `unitPrice`/`lineTotal` — just the leftover label was wrong per
+this round's ask); replaced with a quantity column ("Qtd. N") and a
+product photo, matching `OrderMoneySummary`'s layout on every other
+order-detail perspective. **New backend field**: `photoUrl` didn't
+exist anywhere on the courier-facing item DTO before — added to
+`CourierOrderItemResponse` (both `konecta-order-service`'s own and
+`konecta-courier-service`'s proxy/response DTOs) and wired through
+`OrderMapper.toCourierDetail` (`item.getPhotoUrlSnapshot()`) and
+`CourierOrderService.toDetail`.
+
+**3. "Cancelar atribuição" button made red** — solid `bg-red-600
+hover:bg-red-700` on `variant="primary"`, same override pattern already
+used for the destructive button in `ConfirmDialog.tsx`.
+
+**4. Map + "export to maps app", entregador-only** — new
+`components/courier/CourierDeliveryMap.tsx`: store + delivery pins
+(reuses `OrderMapInner`) plus an "Abrir direções no Maps" link
+(`https://www.google.com/maps/dir/?api=1&destination=...`, real
+coordinates preferred, address text as fallback) — a plain external
+link, opens whichever maps app the entregador's own device prefers,
+entirely outside this app. This is the one place in the app that
+exposes this export, matching the ask that only the entregador gets it.
+**New backend fields** needed for the store pin: `storeLatitude`/
+`storeLongitude` didn't exist on the courier-facing detail DTO before —
+added to `CourierOrderDetailResponse` (both services) and
+`CourierOrderDetailDto` (the Feign client DTO), populated in
+`OrderMapper.toCourierDetail` from the same `order.getStoreLatitude/
+Longitude()` the customer/merchant views already use. The delivery pin
+already had coordinates via the existing `deliveryAddress` object — no
+change needed there.
+
+**5. `COURIER_ASSIGNED` missing from the urgency-badge escalation map —
+real bug, confirmed by the user's own 20-minute test.** `lib/orders/
+urgency.ts`'s `URGENT_STATUS_MODES` only listed `PAID`/
+`STORE_CONFIRMED`/`PREPARING`/`READY_FOR_PICKUP` — `COURIER_ASSIGNED`
+was simply absent, so `urgencyApplies()` always returned `false` for it
+regardless of elapsed time, and the badge never escalated past neutral
+no matter how long an order sat waiting for the entregador to show up
+at the store. Added `COURIER_ASSIGNED: ["DELIVERY"]` (it's only ever
+reachable for DELIVERY orders anyway, listed explicitly rather than
+`null` for the same reason `READY_FOR_PICKUP` is).
+
+**6. The "QR scan jumps straight to Entregue" bug — this is Round 44's
+documented backend revision (`API_REFERENCE_ORDER_QR.md`'s "REVISION
+NEEDED", written 2026-09-07), which had never actually been implemented
+until this round.** `MerchantOrderService.completeByQr`
+(`konecta-order-service`) was still jumping straight to the terminal
+status (`PICKED_UP`/`DELIVERED`) on a single scan, exactly as Round 44
+described needing to change. Fixed to match that spec precisely: a
+customer-code scan now advances the order to `READY_FOR_PICKUP` only
+(the last status the *store* owns) if it isn't there yet, and is a
+no-op if it's already at or past that point — the actual final
+confirmation (`READY_FOR_PICKUP → PICKED_UP`/`COURIER_ASSIGNED`) stays
+a deliberate, separate action on the order detail page, exactly as
+Round 44 specified.
+
+**7. Bonus fix found while reproducing #6: the "Pedido não encontrado"
+report** (MERCHANT_STAFF scanning the entregador's own QR code through
+the generic "Ler QR code" scanner, testing order `dd31ed75`) **— caused
+by `completeByQr` only ever matching `orders.qr_code` (the customer's
+code), never `orders.courier_qr_code`.** Added
+`OrderRepository.findByQrCodeOrCourierQrCode` and changed `completeByQr`
+to resolve either code; a courier-code match returns the order
+unchanged (no status jump — the actual hand-off confirmation is still
+`scanCourierQr`'s job, via the order detail page's dedicated "Confirmar
+recolha do entregador" section, unchanged and re-verified still
+working). Documented in full in `API_REFERENCE_ORDER_QR.md`.
+
+**8. Removed a genuinely dead-end transition found while investigating
+#7**: the generic `COURIER_ASSIGNED -> PICKED_UP` (DELIVERY) action —
+both backend (`MerchantOrderTransitions`) and its frontend button
+("Marcar como recolhido pelo estafeta", `statusTransitions.ts`) —
+predates the real QR-based courier hand-off flow and, for a DELIVERY
+order, `PICKED_UP` has **no transition anywhere in the codebase** that
+moves it any further (confirmed via a full-repo grep) — a dead end.
+The real, working hand-off confirmation is `scanCourierQr`
+(`COURIER_ASSIGNED -> IN_TRANSIT`, already correct, untouched this
+round). Removed rather than relabeled to avoid a trap.
+
+**9. "estafeta" → "entregador" renamed everywhere in the frontend UI**
+(2 files had it: `OrderMapInner.tsx`'s map popup label, and the
+button/comment in `statusTransitions.ts` — the latter removed per #8
+rather than just relabeled). No backend Java occurrences existed.
+
+**Live-verified**, restarting both `konecta-order-service` and
+`konecta-courier-service`: the exploit-style generic scan-to-terminal
+jump is gone (a `PREPARING` DELIVERY order scanned via its customer
+code now lands on `READY_FOR_PICKUP`, confirmed idempotent on a
+re-scan); scanning a real entregador QR code through the generic
+scanner now returns `200` with status untouched instead of `404`; the
+dedicated `scanCourierQr` flow (through the courier-service proxy)
+still correctly moves `COURIER_ASSIGNED -> IN_TRANSIT`; a real courier
+test account (`dercio.anselmo4@zohomail.com`) self-assigning a fresh
+order confirmed `storeLatitude`/`storeLongitude` and `items[].photoUrl`
+now come through end-to-end. `tsc --noEmit`, `eslint`, and `npm run
+build` all clean on the frontend; both backend services compile clean.
+
+**Not yet visually verified**: no headless-browser tooling was
+available in this environment (no `chromium-cli`, no local Playwright
+install) to screenshot the actual rendered pages — the courier tab
+restructuring, red button, item photos, and map/export link are
+verified by code review + a clean build + the underlying API responses
+carrying the right data, but not by an actual screenshot. Worth a
+manual look before considering this fully closed.

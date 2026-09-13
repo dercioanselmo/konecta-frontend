@@ -17,6 +17,7 @@ export interface CourierOrderSummary {
 export interface CourierOrderItem {
   productId: string;
   name: string;
+  photoUrl: string | null;
   quantity: number;
 }
 
@@ -26,6 +27,8 @@ export interface CourierOrder {
   storeId: string;
   storeName: string;
   storeLogoUrl: string | null;
+  storeLatitude: number | null;
+  storeLongitude: number | null;
   items: CourierOrderItem[];
   total: number;
   deliveryMode: "DELIVERY";

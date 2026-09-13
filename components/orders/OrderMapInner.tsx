@@ -75,7 +75,7 @@ export default function OrderMapInner({
       ) : null}
       {courier ? (
         <Marker position={[courier.latitude, courier.longitude]} icon={COURIER_ICON}>
-          <Popup>Estafeta</Popup>
+          <Popup>Entregador</Popup>
         </Marker>
       ) : null}
       {trajectory ? <Polyline positions={trajectory} pathOptions={{ color: "#059669", dashArray: "6 6" }} /> : null}

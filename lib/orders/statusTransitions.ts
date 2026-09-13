@@ -50,16 +50,19 @@ export const MERCHANT_STATUS_ACTIONS: Partial<Record<OrderStatus, StatusAction[]
   // assignment (self-assign by the courier, or the dedicated
   // select-a-courier control in MerchantOrderDetailView.tsx) always sets
   // both the courier and the status together — never this generic button.
-  // No COURIER_ASSIGNED entry — a DELIVERY order's hand-off confirmation
-  // isn't a generic status button at all, it's the QR-scan flow
-  // (MerchantOrderDetailView's "Confirmar recolha do entregador" section,
-  // scanning the entregador's own QR code straight to IN_TRANSIT). A
-  // COURIER_ASSIGNED -> PICKED_UP entry used to live here, but PICKED_UP is
-  // a dead end for a DELIVERY order — nothing ever moves it further — so
-  // it was removed rather than relabeled (2026-09-14, see
-  // MerchantOrderTransitions.java).
   READY_FOR_PICKUP: [
     { path: ["PICKED_UP"], label: "Marcar como levantado pelo cliente", deliveryModes: ["PICKUP"] },
+  ],
+  // A COURIER_ASSIGNED -> PICKED_UP entry used to live here, but PICKED_UP
+  // is a dead end for a DELIVERY order — nothing ever moves it further —
+  // so it was removed rather than relabeled (2026-09-14, see
+  // MerchantOrderTransitions.java). This plain button is the manual
+  // fallback for the same hand-off confirmation as
+  // MerchantOrderDetailView's "Confirmar recolha do entregador" QR-scan
+  // section — both reach IN_TRANSIT; use whichever fits (a working
+  // scanner, or staff who already confirmed the hand-off some other way).
+  COURIER_ASSIGNED: [
+    { path: ["IN_TRANSIT"], label: "Confirmar a caminho", deliveryModes: ["DELIVERY"] },
   ],
 };
 

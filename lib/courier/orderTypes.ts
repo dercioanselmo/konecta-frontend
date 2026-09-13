@@ -5,6 +5,10 @@ export interface CourierOrderSummary {
   storeId: string;
   storeName: string;
   storeLogoUrl: string | null;
+  /** Distance from the courier's own base location — to the store for an
+   * unassigned/available order, to the delivery address for an assigned
+   * one or a past delivery. Null when either point is unknown. */
+  distanceKm: number | null;
   status: OrderStatus;
   deliveryMode: "DELIVERY";
   itemCount: number;
@@ -29,6 +33,7 @@ export interface CourierOrder {
   storeLogoUrl: string | null;
   storeLatitude: number | null;
   storeLongitude: number | null;
+  distanceKm: number | null;
   items: CourierOrderItem[];
   total: number;
   deliveryMode: "DELIVERY";

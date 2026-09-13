@@ -22,6 +22,21 @@ export function listAssignedCourierOrders(): Promise<CourierOrderSummary[]> {
   return request("/api/courier/orders/assigned");
 }
 
+export interface CourierOrderHistoryFilters {
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export function listCourierOrderHistory(filters: CourierOrderHistoryFilters = {}): Promise<CourierOrderSummary[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  const qs = params.toString();
+  return request(`/api/courier/orders/history${qs ? `?${qs}` : ""}`);
+}
+
 export function getCourierOrder(orderId: string): Promise<CourierOrder> {
   return request(`/api/courier/orders/${orderId}`);
 }

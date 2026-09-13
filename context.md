@@ -1992,3 +1992,116 @@ restructuring, red button, item photos, and map/export link are
 verified by code review + a clean build + the underlying API responses
 carrying the right data, but not by an actual screenshot. Worth a
 manual look before considering this fully closed.
+
+## Round 61: follow-up from a real Round 60 test pass — nav, list ordering, distance, "Confirmar a caminho" restored, history tab (2026-09-14)
+
+The user live-tested Round 60 and reported several concrete gaps —
+covered below, each backed by a live-verified fix.
+
+**1. Perfil tab now goes straight to the edit form.** It used to land
+on a read-only summary card with its own "Editar →" link — an extra
+click for no reason. `CourierShell.tsx`'s Perfil link now points
+directly at `/courier/onboarding`; the intermediate
+`app/courier/profile/` page (added last round) was removed as dead
+code.
+
+**2. Orders tab reordered, distance added, translated status restored,
+new "Atribuir-me" in the detail page.** Real regression found: the
+assigned list's row had degraded to showing only `#id · {order.status}`
+in raw English — lost the translated status and every other detail
+(itemCount, date, distance) the available list still had.
+- `CourierOrdersDashboard.tsx` rewritten around one shared `OrderRow`:
+  **available list now renders first** ("Encomendas disponíveis", green
+  `text-brand-green` heading), **assigned list second** ("As suas
+  entregas", orange `text-brand-orange` heading, sorted nearest-first
+  by the backend). Both rows now show store, id, item count, distance,
+  translated status (`ORDER_STATUS_LABELS`), date, and total —
+  the assigned row is no longer a stripped-down version of the
+  available one.
+- `CourierOrderDetailView.tsx`: added distance next to the status line;
+  added an "Atribuir-me" button (calls the same `assignCourierOrder`
+  as the list) for an unassigned order's own detail page — previously
+  only reachable from the list row, not the detail.
+- **New backend field: `distanceKm`.** Order-service's courier summary/
+  detail responses gained raw `storeLatitude/Longitude` +
+  `deliveryLatitude/Longitude` (summary) so courier-service — the only
+  service that knows the courier's own base location
+  (`CourierProfile.baseLatitude/Longitude`) — can compute it via the
+  existing `Haversine` helper (same one `CourierShopAssociationService`
+  already uses for shop distances). Rule: unassigned order → distance
+  to the **store** (that's the courier's next leg); assigned order or
+  past delivery → distance to the **delivery address** (the remaining/
+  completed leg). `listAssigned` now sorts by this ascending
+  (nulls last) server-side, per the "yet to deliver, least far first"
+  ask. Raw coordinates never reach the frontend on the summary/list
+  shape — only the computed `distanceKm`; the detail response does also
+  carry `storeLatitude/Longitude` already (Round 60, for the map).
+
+**3. Item rows no longer repeat "Qtd." on every line.** Was `Qtd. N`
+per row; now a proper header row (`Produto | Qtd.`) with just the bare
+number underneath it in each line, matching `OrderMoneySummary`'s
+layout convention.
+
+**4. "Confirmar a caminho" is back — root-caused correctly this time.**
+Round 60 removed the old `COURIER_ASSIGNED -> PICKED_UP` action because
+`PICKED_UP` was a genuine dead end for a DELIVERY order (confirmed by a
+full-repo grep — nothing ever moved it further). That reasoning was
+right, but it left **zero** plain-button path off `COURIER_ASSIGNED` —
+the only remaining route was the QR-scan section, and the user reported
+the button missing after *either* scanning the entregador's QR *or*
+manually assigning a courier via the dropdown. Fixed properly this
+time: added `COURIER_ASSIGNED -> IN_TRANSIT` (not `PICKED_UP`) as a
+merchant-triggerable transition — `MerchantOrderTransitions.java` +
+a new `statusTransitions.ts` entry, labeled "Confirmar a caminho". This
+converges on the exact same target status the QR-scan flow
+(`scanCourierQr`) already reaches, so it's a genuine alternative path,
+not a competing one — no new dead end. **Live-verified**: `PATCH
+.../status {"status":"IN_TRANSIT"}` on a real `COURIER_ASSIGNED`
+DELIVERY order → `200`, status flipped.
+
+**5. New "Histórico" tab** — `CourierShell.tsx` gained a 4th nav entry
+(Encomendas | Histórico | Lojas | Perfil). New page
+`app/courier/history/` (`CourierHistoryView.tsx`): search box (any
+word, any field) + date-from/date-to, debounced 300ms, sorted
+most-recent-first by default, same row shape as the other lists
+(distance, translated status, etc.), each row links to the existing
+order-detail page (map, items, everything already built there).
+**New backend surface**: `GET /api/v1/courier/orders/history` (order-
+service) — `OrderSpecifications.deliveredByCourier` (status=DELIVERED
++ this courier) combined with a new `courierSearchAny` (store name,
+contact email/phone, product name, order-id substring — same OR
+pattern as the merchant list's `searchAny`, plus store name since a
+courier's history spans many different stores unlike a shop-scoped
+merchant list) and the existing `createdFrom`/`createdTo` specs. No
+pagination — a single courier's own delivered-order count is bounded
+enough that the available/assigned lists already skip it too. Proxied
+through courier-service (`OrdersClient.getOrderHistory` Feign method +
+`CourierOrderService.listHistory`, same `distanceKm` computation as the
+other lists) and a new BFF route
+`app/api/courier/orders/history/route.ts`. **Live-verified**: real
+history returned 2 real delivered orders, most-recent first;
+`?search=Baoba` correctly narrowed to just the matching store.
+
+**6. Merchant QR-scan success panel cleaned up** (per explicit ask):
+`PickupQrScanner.tsx`'s success result no longer shows "Confirme a
+entrega ao cliente na página da encomenda depois de verificar os
+produtos." — the link alone now reads **"Confirmar encomenda →"**
+(was "Ver encomenda →"), at `text-base font-semibold` instead of
+`text-sm font-medium` (visibly bigger, matching the ask).
+
+**Live-verified end-to-end**: restarted both `konecta-order-service`
+and `konecta-courier-service`; real courier account
+(`dercio.anselmo4@zohomail.com`) — `available`/`assigned`/`history`
+endpoints all returned real `distanceKm` values computed from that
+courier's actual base location; `history?search=Baoba` narrowed
+correctly; the restored "Confirmar a caminho" PATCH moved a real order
+`COURIER_ASSIGNED -> IN_TRANSIT`. `tsc --noEmit`, `eslint`, and
+`npm run build` all clean (had to clear a stale `.next/types` cache
+after deleting `app/courier/profile/` — Next's route-type generation
+doesn't self-prune on a deleted route until the next build). Both
+backend services compile clean.
+
+**Still not visually verified** — same environment gap as Round 60, no
+headless-browser tool available. Everything above is confirmed via
+direct API calls, a clean production build, and code review, not a
+screenshot of the rendered pages.

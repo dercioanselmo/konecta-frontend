@@ -25,10 +25,13 @@ export function CourierShell({ user, children }: { user: UserProfile; children: 
         <Link href="/courier" className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground">
           Encomendas
         </Link>
+        <Link href="/courier/history" className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground">
+          Histórico
+        </Link>
         <Link href="/courier/stores" className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground">
           Lojas
         </Link>
-        <Link href="/courier/profile" className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground">
+        <Link href="/courier/onboarding" className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:bg-surface hover:text-foreground">
           Perfil
         </Link>
       </nav>

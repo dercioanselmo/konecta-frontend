@@ -87,11 +87,8 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
               #{result.order.orderId.slice(0, 8)} · {result.order.customerName}
             </p>
             <p className="text-sm text-muted">Novo estado: {ORDER_STATUS_LABELS[result.order.status] ?? result.order.status}</p>
-            <p className="text-sm text-muted">
-              Confirme a entrega ao cliente na página da encomenda depois de verificar os produtos.
-            </p>
-            <Link href={`${basePath}/${shopId}/orders/${result.order.orderId}`} className="text-sm font-medium text-brand-green hover:underline">
-              Ver encomenda →
+            <Link href={`${basePath}/${shopId}/orders/${result.order.orderId}`} className="text-base font-semibold text-brand-green hover:underline">
+              Confirmar encomenda →
             </Link>
           </>
         ) : result.kind === "mismatch" ? (

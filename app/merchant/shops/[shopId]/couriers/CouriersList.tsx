@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { getShop } from "@/lib/stores/client";
 import { listShopCouriers, setCourierStatus, rejectCourier } from "@/lib/courier/client";
 import { ClientApiError } from "@/lib/auth/client";
 import { ASSOCIATION_STATUS_LABELS, TRANSPORT_LABELS, type AssociationStatus, type ShopCourier } from "@/lib/courier/types";
@@ -39,6 +40,7 @@ export function CouriersList({
 }: CouriersListProps) {
   const [tab, setTab] = useState<AssociationStatus>("ACTIVE");
   const [couriers, setCouriers] = useState<ShopCourier[]>([]);
+  const [shopName, setShopName] = useState("Loja");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -55,6 +57,10 @@ export function CouriersList({
     } finally {
       setLoading(false);
     }
+  }, [shopId]);
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
   }, [shopId]);
 
   useEffect(() => {
@@ -104,7 +110,7 @@ export function CouriersList({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <h2 className="text-xl font-bold text-foreground">Entregadores</h2>
 

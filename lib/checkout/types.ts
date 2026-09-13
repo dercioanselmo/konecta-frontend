@@ -112,6 +112,21 @@ export interface Order {
    * orders placed before this existed.
    */
   qrCode?: string | null;
+  /**
+   * Assigned courier's identity, for showing "quem vai entregar/entregou"
+   * to the customer once a delivery order reaches `COURIER_ASSIGNED` or
+   * later. PROPOSED — KONECTA-ORDERS-SERVICE's order-read endpoints
+   * (customer's own `/orders/{orderId}` and the merchant-scoped one) do
+   * not return any of these fields today, confirmed live 2026-09-12 (a
+   * real assigned order came back with none of them). Always
+   * `null`/absent until the backend adds them; every UI reading these
+   * must degrade to hiding the block rather than showing a blank/broken
+   * name, exactly like every other still-proposed field in this project.
+   */
+  courierId?: string | null;
+  courierName?: string | null;
+  courierPhone?: string | null;
+  courierPhotoUrl?: string | null;
 }
 
 export type CheckoutErrorCode =

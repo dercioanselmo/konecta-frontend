@@ -38,8 +38,6 @@ export interface MerchantOrdersListResponse {
 /** Same shape as the customer-facing `Order`, plus the customer's name (not on that model). */
 export interface MerchantOrder extends Order {
   customerName: string;
-  courierId?: string | null;
-  courierName?: string | null;
   courierQrCode?: string | null;
 }
 

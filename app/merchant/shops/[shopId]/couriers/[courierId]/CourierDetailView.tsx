@@ -104,7 +104,7 @@ export function CourierDetailView({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={shop?.name ?? "Loja"} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <Link href={`${basePath}/${shopId}/couriers`} className="text-sm text-muted hover:underline">
         ← Entregadores

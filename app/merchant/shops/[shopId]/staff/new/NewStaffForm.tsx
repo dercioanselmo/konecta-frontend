@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { createStaff } from "@/lib/merchant/client";
+import { getShop } from "@/lib/stores/client";
 import { fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
 import { phoneRegex } from "@/lib/auth/validation";
 import type { Neighborhood } from "@/lib/auth/types";
@@ -48,6 +49,7 @@ export function NewStaffForm({
 }: NewStaffFormProps) {
   const router = useRouter();
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [shopName, setShopName] = useState("Loja");
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -62,6 +64,10 @@ export function NewStaffForm({
   useEffect(() => {
     fetchNeighborhoods("Maputo").then(setNeighborhoods);
   }, []);
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
+  }, [shopId]);
 
   const onSubmit = async (values: FormValues) => {
     setFormError(null);
@@ -89,7 +95,7 @@ export function NewStaffForm({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={shopName} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-lg flex-col gap-4">
         <h2 className="text-xl font-bold text-foreground">Novo funcionário</h2>

@@ -7,6 +7,7 @@ import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
 import { OrderMap } from "@/components/orders/OrderMap";
 import { OrderQrCode } from "@/components/orders/OrderQrCode";
 import { OrderMoneySummary } from "@/components/orders/OrderMoneySummary";
+import { CourierInfoCard } from "@/components/orders/CourierInfoCard";
 import { getOrder } from "@/lib/checkout/client";
 import { isTerminalOrderStatus } from "@/lib/checkout/orderStatus";
 import type { Order } from "@/lib/checkout/types";
@@ -65,6 +66,8 @@ export function OrderDetailView({ orderId, initialOrder }: { orderId: string; in
       </div>
 
       <OrderMap order={current} />
+
+      <CourierInfoCard courierName={current.courierName} courierPhone={current.courierPhone} courierPhotoUrl={current.courierPhotoUrl} />
 
       <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4">
         {current.storeLogoUrl ? (

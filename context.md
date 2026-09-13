@@ -125,6 +125,73 @@ Picked up a session-transfer review request covering three items:
      — nothing signaled that this tab held the order dashboard. Renamed
      it to **"Início"** (`components/courier/CourierShell.tsx`). No
      other change — the dashboard itself was already correct.
+
+### Round 2026-09-12: three more issues from live merchant testing
+
+1. **Real bug, fixed: staff could force an order to `COURIER_ASSIGNED`
+   with no courier attached.** `lib/orders/statusTransitions.ts`'s
+   `READY_FOR_PICKUP` entry had a generic "Atribuir estafeta" quick
+   action that PATCHed status straight to `COURIER_ASSIGNED` — a
+   leftover from before the real courier-assignment flow existed (see
+   the `API_REFERENCE_MERCHANT_ORDERS.md` follow-up bug note this added).
+   Removed that action entirely; the dedicated select-a-courier control
+   already in `MerchantOrderDetailView.tsx` (which sets courier +
+   status together via `assignShopOrderCourier`) is now the only path.
+   Live-reproduced the exact bug the user hit before fixing: order
+   `05fe2d93-1a7d-4975-a845-426fc532f9d8` (shop "Loja Teste E2E 2") is
+   stuck `COURIER_ASSIGNED` with `courierId: null` and has **no
+   couriers at all** associated with that shop (confirmed via
+   `GET .../couriers` — empty, not a listing bug: nobody has ever
+   requested/been approved for this specific shop). That stuck order
+   needs a manual/backend fix — the frontend has no downgrade action
+   once status is past `READY_FOR_PICKUP`; documented in
+   `API_REFERENCE_MERCHANT_ORDERS.md` together with a request that the
+   backend also reject this transition server-side so a stray API call
+   can't reproduce it again. Also added an explicit "sem entregadores
+   ativos" message in the assign-courier section instead of a
+   silently-empty dropdown.
+2. **Systemic bug, fixed: 8 shop-scoped pages never showed which shop
+   you were in.** `ShopNav` already supports a `shopName` prop and
+   renders it as the page's `<h1>`, but 8 call sites were passing
+   `shopName=""` and never fetched the shop at all —
+   `CouriersList.tsx`, `CourierDetailView.tsx` (had `shop` state
+   loaded for its map already, just never passed `shop.name`),
+   `MerchantOrderDetailView.tsx` (had `order.storeName` already, same
+   miss), `MerchantOrdersList.tsx`, `ScanOrderView.tsx`,
+   `StaffList.tsx`, `NewStaffForm.tsx`, and `StaffDetailView.tsx`
+   (which also had a second `<ShopNav>` call missing `basePath`/
+   `listHref`/`listLabel` entirely — an Admin viewing staff from
+   `/admin/shops/...` would have silently lost that context). Fixed
+   all 8 with the same pattern already used correctly elsewhere in the
+   codebase (`HoursForm.tsx`, `LocationForm.tsx`,
+   `ShopSettingsForm.tsx`, `ShopDashboard.tsx`): a `"Loja"` placeholder
+   while `getShop(shopId)` loads, then the real name.
+3. **New capability, built: courier name/phone/photo visible on the
+   order once assigned, on every perspective that reads an order.**
+   Added `courierId`/`courierName`/`courierPhone`/`courierPhotoUrl` to
+   the base `Order` type (`lib/checkout/types.ts`) and removed the
+   now-redundant duplicate declarations on `MerchantOrder`. New shared
+   `components/orders/CourierInfoCard.tsx`, wired into both
+   `OrderDetailView.tsx` (customer) and `MerchantOrderDetailView.tsx`
+   — renders nothing until `courierName` is actually present, matching
+   the project's standard degrade-gracefully pattern. **Confirmed
+   live this is 100% blocked on a backend gap** — a real order that
+   went through the full assign → deliver lifecycle came back from
+   `GET .../orders/{orderId}` with **none** of these fields, not even
+   `null`; `KONECTA-ORDERS-SERVICE` has no `courierId` concept on its
+   order-read model at all today. Documented as a new gap in
+   `API_REFERENCE_konecta_order.md`. As a partial, same-session-only
+   workaround, `MerchantOrderDetailView.tsx`'s `assignCourier()` now
+   fills `courierPhone` client-side from the active-couriers list it
+   already has in hand right after a successful assignment — real data
+   from a real list, just not persisted, so it disappears again on
+   reload until the backend field ships. Courier's own order-detail
+   view was deliberately **not** given this card — showing a courier
+   his own name/phone to himself has no value.
+- `npx tsc --noEmit`, `npm run lint`, and `npm run build` all clean
+  after this round. Fixes 1 and 2 verified live against the real
+  backend; fix 3 verified live to degrade correctly (renders nothing)
+  since the backend field doesn't exist yet.
 - `npx tsc --noEmit` and `npm run lint` both clean after this change.
 
 ---

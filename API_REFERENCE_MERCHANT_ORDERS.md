@@ -177,6 +177,31 @@ in this proposal — those read as courier/system-driven, out of a
 merchant's own responsibility boundary. Revisit once a courier flow
 exists.
 
+**Follow-up bug (2026-09-12): `READY_FOR_PICKUP -> COURIER_ASSIGNED`
+should no longer be reachable through this generic endpoint at all.**
+This row predates the real courier-assignment flow
+(`FRONTEND_COURIER_ORDERS_INTEGRATION_response.md`), which now owns
+`COURIER_ASSIGNED` properly — reached only via the courier
+self-assigning (`POST /api/v1/couriers/me/orders/{orderId}/assignment`)
+or the merchant's dedicated
+`PATCH /api/v1/merchant/shops/{shopId}/orders/{orderId}/courier`
+(sets courier + status together). Live-reproduced: a `MERCHANT_STAFF`
+called this generic status endpoint directly with
+`{"status":"COURIER_ASSIGNED"}` on a `READY_FOR_PICKUP` order and it
+succeeded, leaving the order `COURIER_ASSIGNED` with **`courierId:
+null`** — a real, currently-committed bad row: order
+`05fe2d93-1a7d-4975-a845-426fc532f9d8` (shop "Loja Teste E2E 2"). This
+order needs a manual/backend fix (revert to `READY_FOR_PICKUP`, or
+attach a real courier directly) — the frontend has no downgrade action
+once status has moved past `READY_FOR_PICKUP`. The frontend's own quick
+-action button for this was removed the same day
+(`lib/orders/statusTransitions.ts`) so the UI no longer offers this
+path, but the generic endpoint itself should reject
+`COURIER_ASSIGNED` as a target unconditionally (or, at minimum, require
+a non-null `courierId` already present on the order before allowing
+it) so a stray API call — this frontend's old button, a future one, or
+a raw client — can't reproduce it again.
+
 **Response `200 OK`** — the updated `Order`/detail shape (same as GET).
 
 **Errors**

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ShopNav } from "@/components/merchant/ShopNav";
 import { PickupQrScanner } from "@/components/merchant/PickupQrScanner";
+import { getShop } from "@/lib/stores/client";
 
 interface ScanOrderViewProps {
   shopId: string;
@@ -21,9 +23,15 @@ export function ScanOrderView({
   listLabel = "As suas lojas",
   expectedOrderId,
 }: ScanOrderViewProps) {
+  const [shopName, setShopName] = useState("Loja");
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
+  }, [shopId]);
+
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <div>
         <Link

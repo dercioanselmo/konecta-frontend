@@ -44,9 +44,14 @@ export const MERCHANT_STATUS_ACTIONS: Partial<Record<OrderStatus, StatusAction[]
     { path: ["READY_FOR_PICKUP"], label: "Marcar como pronto para levantamento" },
     { path: ["CANCELLED"], label: "Cancelar", destructive: true },
   ],
+  // No generic "Atribuir estafeta" action here for DELIVERY orders — that
+  // used to PATCH status straight to COURIER_ASSIGNED without ever picking
+  // a courier, leaving orders "assigned" with courierId: null. Real
+  // assignment (self-assign by the courier, or the dedicated
+  // select-a-courier control in MerchantOrderDetailView.tsx) always sets
+  // both the courier and the status together — never this generic button.
   READY_FOR_PICKUP: [
     { path: ["PICKED_UP"], label: "Marcar como levantado pelo cliente", deliveryModes: ["PICKUP"] },
-    { path: ["COURIER_ASSIGNED"], label: "Atribuir estafeta", deliveryModes: ["DELIVERY"] },
   ],
   COURIER_ASSIGNED: [{ path: ["PICKED_UP"], label: "Marcar como recolhido pelo estafeta", deliveryModes: ["DELIVERY"] }],
 };

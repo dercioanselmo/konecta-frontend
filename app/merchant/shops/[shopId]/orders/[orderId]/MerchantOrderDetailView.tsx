@@ -7,6 +7,7 @@ import { OrderStatusRoadmap } from "@/components/orders/OrderStatusRoadmap";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { OrderMap } from "@/components/orders/OrderMap";
 import { OrderMoneySummary } from "@/components/orders/OrderMoneySummary";
+import { CourierInfoCard } from "@/components/orders/CourierInfoCard";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getMerchantOrder, updateOrderStatus } from "@/lib/orders/merchantClient";
@@ -50,6 +51,7 @@ export function MerchantOrderDetailView({
   const [updating, setUpdating] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderStatus[] | null>(null);
   const [activeCouriers, setActiveCouriers] = useState<ActiveCourier[]>([]);
+  const [activeCouriersLoaded, setActiveCouriersLoaded] = useState(false);
   const [selectedCourierId, setSelectedCourierId] = useState("");
   const [showCourierScan, setShowCourierScan] = useState(false);
 
@@ -71,7 +73,10 @@ export function MerchantOrderDetailView({
 
   useEffect(() => {
     if (!order || order.deliveryMode !== "DELIVERY" || order.status !== "READY_FOR_PICKUP") return;
-    listActiveShopCouriers(shopId).then(setActiveCouriers).catch(() => setActiveCouriers([]));
+    listActiveShopCouriers(shopId)
+      .then(setActiveCouriers)
+      .catch(() => setActiveCouriers([]))
+      .finally(() => setActiveCouriersLoaded(true));
   }, [order, shopId]);
 
   const runTransition = async (path: OrderStatus[]) => {
@@ -115,7 +120,13 @@ export function MerchantOrderDetailView({
     setActionError(null);
     setUpdating("courier");
     try {
-      setOrder(await assignShopOrderCourier(shopId, orderId, selectedCourierId));
+      const updated = await assignShopOrderCourier(shopId, orderId, selectedCourierId);
+      // The order-read endpoint doesn't return courierPhone yet (see the
+      // PROPOSED note on Order.courierPhone) — fill it in from the
+      // active-courier list we already fetched, so it's visible this
+      // session without waiting on that backend change.
+      const picked = activeCouriers.find((c) => c.courierId === selectedCourierId);
+      setOrder(picked ? { ...updated, courierPhone: updated.courierPhone ?? picked.phone } : updated);
     } catch (err) {
       setActionError(err instanceof ClientApiError ? err.message : "Não foi possível atribuir o entregador.");
     } finally {
@@ -125,7 +136,7 @@ export function MerchantOrderDetailView({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={order?.storeName ?? "Loja"} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       {loading ? (
         <p className="text-sm text-muted">A carregar…</p>
@@ -200,13 +211,17 @@ export function MerchantOrderDetailView({
           {order.deliveryMode === "DELIVERY" && order.status === "READY_FOR_PICKUP" ? (
             <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
               <h2 className="text-base font-semibold text-foreground">{order.courierId ? "Alterar entregador" : "Atribuir entregador"}</h2>
-              <div className="flex flex-wrap gap-2">
-                <select value={selectedCourierId} onChange={(e) => setSelectedCourierId(e.target.value)} className="h-10 min-w-52 rounded-xl border border-border bg-background px-3 text-sm text-foreground">
-                  <option value="">Selecione um entregador</option>
-                  {activeCouriers.map((courier) => <option key={courier.courierId} value={courier.courierId}>{courier.courierName} · {courier.phone}</option>)}
-                </select>
-                <Button type="button" disabled={!selectedCourierId} loading={updating === "courier"} onClick={() => void assignCourier()}>Atribuir</Button>
-              </div>
+              {activeCouriersLoaded && activeCouriers.length === 0 ? (
+                <p className="text-sm text-muted">Esta loja ainda não tem entregadores ativos. Aprove um pedido em &quot;Entregadores&quot; antes de conseguir atribuir uma entrega.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <select value={selectedCourierId} onChange={(e) => setSelectedCourierId(e.target.value)} className="h-10 min-w-52 rounded-xl border border-border bg-background px-3 text-sm text-foreground">
+                    <option value="">Selecione um entregador</option>
+                    {activeCouriers.map((courier) => <option key={courier.courierId} value={courier.courierId}>{courier.courierName} · {courier.phone}</option>)}
+                  </select>
+                  <Button type="button" disabled={!selectedCourierId} loading={updating === "courier"} onClick={() => void assignCourier()}>Atribuir</Button>
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -220,6 +235,8 @@ export function MerchantOrderDetailView({
           ) : null}
 
           <OrderMap order={order} />
+
+          <CourierInfoCard courierName={order.courierName} courierPhone={order.courierPhone} courierPhotoUrl={order.courierPhotoUrl} />
 
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
             <p className="font-medium text-foreground">Cliente</p>

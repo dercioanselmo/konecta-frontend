@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { listMerchantOrders } from "@/lib/orders/merchantClient";
+import { getShop } from "@/lib/stores/client";
 import { ClientApiError } from "@/lib/auth/client";
 import { ORDER_STATUS_LABELS } from "@/lib/checkout/orderStatusLabels";
 import type { MerchantOrderSummary } from "@/lib/orders/merchantTypes";
@@ -45,8 +46,13 @@ export function MerchantOrdersList({
   // combined with a lot of orders may miss matches beyond the first page.
   const [status, setStatus] = useState<OrderStatus | "">("");
   const [orders, setOrders] = useState<MerchantOrderSummary[]>([]);
+  const [shopName, setShopName] = useState("Loja");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
+  }, [shopId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,7 +83,7 @@ export function MerchantOrdersList({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
+      <ShopNav shopId={shopId} shopName={shopName} hideStaff={hideStaff} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-foreground">Encomendas</h2>

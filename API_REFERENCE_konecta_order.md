@@ -375,6 +375,41 @@ Other practical implications for anyone integrating against this service:
   role/endpoint for an actual courier actor to drive `IN_TRANSIT` →
   `DELIVERED` themselves — those two remain unreachable through any
   endpoint on this service today (by design, until a courier flow exists).
+  **Now outdated in one respect** (2026-09-12): a real courier flow
+  *does* exist, owned by `KONECTA-COURIER-SERVICE`
+  (`FRONTEND_COURIER_ORDERS_INTEGRATION_response.md`) — see the
+  `PATCH .../status` follow-up bug below this service's own transition
+  table in `API_REFERENCE_MERCHANT_ORDERS.md` for a related data-integrity
+  gap this surfaced (a generic status PATCH could set `COURIER_ASSIGNED`
+  with no `courierId`, since this service has never had a concept of
+  `courierId` on an order at all — see the next point).
+- **No courier identity fields on the order at all — `courierId` is not
+  even a column, let alone `courierName`/`courierPhone`/`courierPhotoUrl`.**
+  Confirmed live 2026-09-12: `GET .../orders/{orderId}` for a real order
+  that had gone through the full courier self-assign → merchant-QR-scan →
+  customer-QR-scan → `DELIVERED` lifecycle came back with **none** of
+  these fields — not even `null`, just absent. The frontend has a
+  dedicated courier-facing read model on `KONECTA-COURIER-SERVICE`
+  (`GET /api/v1/couriers/me/orders/{orderId}`) that *does* know the
+  courier's identity, but nothing on this service's own customer-facing
+  or merchant-facing order reads exposes it — so today, a customer
+  tracking their delivery and a merchant looking at their own order both
+  have no way to see who's delivering it (name, phone, or photo), even
+  though the assignment itself is real and working. **Ask**: add
+  `courierId` (uuid, nullable), `courierName` (string, nullable),
+  `courierPhone` (string, nullable), and `courierPhotoUrl` (string,
+  nullable) to both `GET /api/v1/orders/{orderId}` (customer) and
+  `GET /api/v1/merchant/shops/{shopId}/orders/{orderId}` (merchant) —
+  populated once an order reaches `COURIER_ASSIGNED` or later, `null`
+  before that or if unassigned. Source is presumably a
+  service-to-service lookup against `KONECTA-COURIER-SERVICE` by
+  `courierId` (the same id the merchant's manual-assign endpoint already
+  accepts), or a denormalized copy taken at assignment time — whichever
+  fits this service's existing pattern for `storeName`/`storeLogoUrl`
+  (a snapshot, per the note below). The frontend already renders this
+  (`components/orders/CourierInfoCard.tsx`, wired into both the customer
+  and merchant order-detail screens) and degrades to showing nothing
+  when these fields are absent, exactly like today.
 - **No stock-release on cancel.** AGENTS.md §8 asks for Stock reservation
   release on `CANCELLED`/`REFUNDED` — `PATCH .../status` will happily set
   `CANCELLED` without calling Stores-and-Stock to release anything.

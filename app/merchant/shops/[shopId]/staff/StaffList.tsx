@@ -6,6 +6,7 @@ import { ShopNav } from "@/components/merchant/ShopNav";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { listStaff, setStaffEnabled } from "@/lib/merchant/client";
+import { getShop } from "@/lib/stores/client";
 import { ClientApiError } from "@/lib/auth/client";
 import type { UserProfile } from "@/lib/auth/types";
 
@@ -29,9 +30,14 @@ export function StaffList({
 }: StaffListProps) {
   const [staff, setStaff] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState("");
+  const [shopName, setShopName] = useState("Loja");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
+  }, [shopId]);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -68,7 +74,7 @@ export function StaffList({
     <div className="flex flex-col gap-6">
       <ShopNav
         shopId={shopId}
-        shopName=""
+        shopName={shopName}
         hideStaff={hideStaff}
         basePath={basePath}
         listHref={listHref}

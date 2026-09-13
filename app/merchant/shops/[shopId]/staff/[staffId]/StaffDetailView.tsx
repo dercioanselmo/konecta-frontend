@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { getStaff, updateStaff, setStaffEnabled } from "@/lib/merchant/client";
+import { getShop } from "@/lib/stores/client";
 import { fetchNeighborhoods, ClientApiError } from "@/lib/auth/client";
 import { editProfileSchema, type EditProfileFormValues } from "@/lib/auth/validation";
 import type { Neighborhood, UserProfile } from "@/lib/auth/types";
@@ -30,10 +31,15 @@ export function StaffDetailView({
 }: StaffDetailViewProps) {
   const [member, setMember] = useState<UserProfile | null>(null);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [shopName, setShopName] = useState("Loja");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    getShop(shopId).then((s) => setShopName(s.name)).catch(() => {});
+  }, [shopId]);
 
   const {
     register,
@@ -102,7 +108,7 @@ export function StaffDetailView({
   if (loadError) {
     return (
       <div className="flex flex-col gap-3">
-        <ShopNav shopId={shopId} shopName="" basePath={basePath} listHref={listHref} listLabel={listLabel} />
+        <ShopNav shopId={shopId} shopName={shopName} basePath={basePath} listHref={listHref} listLabel={listLabel} />
         <p className="text-sm text-red-500">{loadError}</p>
       </div>
     );
@@ -112,7 +118,7 @@ export function StaffDetailView({
 
   return (
     <div className="flex flex-col gap-6">
-      <ShopNav shopId={shopId} shopName="" />
+      <ShopNav shopId={shopId} shopName={shopName} basePath={basePath} listHref={listHref} listLabel={listLabel} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 
 const isProd = process.env.NODE_ENV === "production";
 
+// Our own public origin - NOT derived from the incoming request. Next.js's
+// standalone server falls back to its own bind address (HOSTNAME/PORT from
+// the Dockerfile, i.e. 0.0.0.0:3000) when it can't confidently resolve a
+// public host from the request (the ALB doesn't set X-Forwarded-Host), so
+// `new URL(path, request.url)` silently redirects the browser to
+// 0.0.0.0:3000 instead of konecta.dercioanselmo.com. Use the known public
+// URL explicitly instead.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
 /**
  * Kicks off Google OAuth. This MUST redirect the browser to our own public
  * origin, not AUTH_API_BASE_URL (that's the Auth service's internal
@@ -17,9 +26,16 @@ const isProd = process.env.NODE_ENV === "production";
  * /auth/callback reads and clears it once the session is established.
  */
 export async function GET(request: Request) {
+  if (!APP_URL) {
+    return NextResponse.json(
+      { code: "CONFIG_ERROR", message: "NEXT_PUBLIC_APP_URL não está configurado." },
+      { status: 500 },
+    );
+  }
+
   const nextPath = new URL(request.url).searchParams.get("next");
   const response = NextResponse.redirect(
-    new URL("/oauth2/authorization/google", request.url),
+    new URL("/oauth2/authorization/google", APP_URL),
   );
 
   // Only accept a same-site relative path — never forward an open redirect.

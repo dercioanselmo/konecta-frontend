@@ -8,6 +8,15 @@ import type { UserProfile } from "@/lib/auth/types";
 
 const isProd = process.env.NODE_ENV === "production";
 
+// Our own public origin - NOT url.origin (derived from the request). The
+// Next.js standalone server falls back to its own bind address
+// (HOSTNAME/PORT from the Dockerfile, 0.0.0.0:3000) when it can't
+// confidently resolve a public host from the request, since the ALB
+// doesn't set X-Forwarded-Host - see /api/auth/google/start/route.ts for
+// the full explanation. Same fix here: use the known public URL
+// explicitly for any redirect target.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
 /**
  * Landing point for the Auth service's Google OAuth redirect. This exact
  * path — /auth/callback — is what the live Auth service's
@@ -22,9 +31,16 @@ export async function GET(request: Request) {
   const accessToken = url.searchParams.get("accessToken");
   const refreshToken = url.searchParams.get("refreshToken");
 
+  if (!APP_URL) {
+    return NextResponse.json(
+      { code: "CONFIG_ERROR", message: "NEXT_PUBLIC_APP_URL não está configurado." },
+      { status: 500 },
+    );
+  }
+
   if (!accessToken || !refreshToken) {
     return NextResponse.redirect(
-      new URL("/login?error=google_oauth_failed", url.origin),
+      new URL("/login?error=google_oauth_failed", APP_URL),
     );
   }
 
@@ -60,5 +76,5 @@ export async function GET(request: Request) {
     // /login if the session turns out to be invalid after all.
   }
 
-  return NextResponse.redirect(new URL(destination, url.origin));
+  return NextResponse.redirect(new URL(destination, APP_URL));
 }

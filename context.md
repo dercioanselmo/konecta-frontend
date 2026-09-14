@@ -31,6 +31,64 @@ later. Verified live (`curl` against the dev server) and via
 
 ---
 
+## Infra aside (2026-09-14): K8s readinessProbe — real `/actuator/health*` across all 6 backend services
+
+Same readinessProbe need as the 2026-09-11 entry above, this time for
+the actual Java services (the frontend's own routes were already fine).
+All 6 already had the `spring-boot-starter-actuator` dependency and
+already permitted *some* form of `/actuator/health` in their Spring
+Security config — this wasn't a from-scratch implementation, it was
+three real bugs found by actually curling every service after making
+the change, not by reading the config and assuming it worked:
+
+1. **konecta-security-service, konecta-checkout-service, konecta-order-service**
+   only permitted the exact string `/actuator/health` in their security
+   filter chain — not the wildcard `/actuator/health/**` the other 3
+   services already used. `/actuator/health` itself returned `200`,
+   but `/actuator/health/readiness` and `/actuator/health/liveness` —
+   the actual paths a K8s probe should hit — 401'd. Fixed all three to
+   `/actuator/health/**`, matching the pattern already established
+   elsewhere.
+2. **konecta-security-service's aggregate `/actuator/health` was
+   genuinely `DOWN`** (503) even after fixing #1 — the only service
+   with `spring-boot-starter-mail` and `spring-kafka` on its classpath,
+   both auto-configuring health indicators that check real
+   connectivity: `SMTP_HOST` is blank locally, and no Kafka broker is
+   running. Both integrations are already optional/toggle-gated by the
+   app's own config (`konecta.kafka.enabled=false` in the local
+   profile), so a real service being otherwise perfectly healthy was
+   reporting DOWN because of two indicators unrelated to its own
+   readiness. Added `management.health.mail.enabled=false` and
+   `management.health.kafka.enabled=false` to stop them from dragging
+   the aggregate status down.
+3. Added explicit `management.endpoints.web.exposure.include=health`
+   and `management.endpoint.health.probes.enabled=true` to all 6
+   services (properties files for 5, `application.yml` for security) —
+   this was already the *effective* default behavior everywhere except
+   security-service, but making it explicit means it's documented
+   intent, not an accident of Spring Boot defaults nobody chose.
+
+**The actual probe target should be `/actuator/health/readiness`, not
+the bare `/actuator/health`** — same reasoning as the frontend's own
+2026-09-11 entry: the readiness group is Spring Boot's own availability
+state, decoupled from every auto-configured indicator (DB, Kafka, mail,
+disk space, Eureka) by default, so one downstream hiccup doesn't flip a
+pod to NotReady. The bare `/actuator/health` aggregates everything and
+is more useful for a human checking overall status than for a K8s
+probe.
+
+**Live-verified all 6 services**, restarted with the new config:
+`/actuator/health`, `/actuator/health/readiness`, and
+`/actuator/health/liveness` all return `200 UP` on every one (ports
+8091–8096). Confirmed no regression — real login (`POST
+/api/v1/auth/login`) and Swagger UI still `200` on the services
+touched. Also fixed a stale claim in `API_REFERENCE_konecta_order.md`'s
+Ops section ("No `/actuator/health` — the actuator dependency isn't
+included") — it *was* included, just blocked past `/actuator/health`
+itself by bug #1 above.
+
+---
+
 ## Current handoff — Courier orders and assignment
 
 ### Round 2026-09-11: restated request review

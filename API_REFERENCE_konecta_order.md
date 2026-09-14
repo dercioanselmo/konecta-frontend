@@ -448,6 +448,18 @@ Other practical implications for anyone integrating against this service:
 | Method & path | Auth |
 |---|---|
 | `GET /v3/api-docs`, `GET /swagger-ui.html` | public |
+| `GET /actuator/health`, `GET /actuator/health/readiness`, `GET /actuator/health/liveness` | public |
 
-No `/actuator/health` — the actuator dependency isn't included in this
-service.
+**Now outdated** (2026-09-14): this section previously said actuator
+wasn't included at all — it was, just not permitted past the security
+filter chain for anything beyond the bare `/actuator/health` path (a
+K8s readinessProbe hitting `/actuator/health/readiness` got a `401`).
+Fixed for the K8s readinessProbe rollout across every backend service —
+`SecurityConfig`'s public-path entry is now `/actuator/health/**`
+(was the exact string `/actuator/health`), matching the pattern the
+other services already used. Point the readinessProbe at
+`/actuator/health/readiness` specifically, not the bare
+`/actuator/health` — the readiness group is Spring Boot's own
+availability state, decoupled from every auto-configured indicator by
+default, so a downstream dependency hiccup elsewhere doesn't flip this
+pod to NotReady.

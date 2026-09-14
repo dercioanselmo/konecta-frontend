@@ -114,18 +114,18 @@ export async function ShopDashboard({
       ) : null}
       {summary ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-surface p-5">
+          <Link href={`${basePath}/${shopId}/products`} className="rounded-2xl border border-border bg-surface p-5 transition-colors hover:bg-surface-hover">
             <p className="text-sm text-muted">Produtos</p>
             <p className="text-2xl font-bold text-foreground">{summary.productCount}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-5">
+          </Link>
+          <Link href={`${basePath}/${shopId}/products`} className="rounded-2xl border border-border bg-surface p-5 transition-colors hover:bg-surface-hover">
             <p className="text-sm text-muted">Produtos ativos</p>
             <p className="text-2xl font-bold text-foreground">{summary.activeProductCount}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-5">
+          </Link>
+          <Link href={`${basePath}/${shopId}/products`} className="rounded-2xl border border-border bg-surface p-5 transition-colors hover:bg-surface-hover">
             <p className="text-sm text-muted">Stock baixo</p>
             <p className="text-2xl font-bold text-brand-orange">{summary.lowStockCount}</p>
-          </div>
+          </Link>
         </div>
       ) : null}
     </div>

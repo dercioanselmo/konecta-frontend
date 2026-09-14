@@ -47,7 +47,7 @@ export function ScanOrderView({
         </p>
       </div>
 
-      <PickupQrScanner shopId={shopId} basePath={basePath} expectedOrderId={expectedOrderId} />
+      <PickupQrScanner shopId={shopId} basePath={basePath} />
     </div>
   );
 }

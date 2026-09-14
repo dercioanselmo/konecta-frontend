@@ -13,12 +13,17 @@ interface CourierServiceErrorBody {
   code: string;
   message: string;
   details?: string[];
+  /** Set on a handful of order-related conflicts (e.g. scanning an
+   * already-delivered/cancelled/refunded order's QR) — must survive this
+   * hop so the client can link straight to that order. */
+  orderId?: string;
 }
 
 export class CourierServiceError extends Error {
   code: string;
   status: number;
   details?: string[];
+  orderId?: string;
 
   constructor(status: number, body: CourierServiceErrorBody) {
     super(body.message || body.code);
@@ -26,6 +31,7 @@ export class CourierServiceError extends Error {
     this.status = status;
     this.code = body.code;
     this.details = body.details;
+    this.orderId = body.orderId;
   }
 }
 
@@ -62,7 +68,7 @@ export async function courierApiFetch<T>(path: string, init: RequestInit = {}): 
 export function courierApiErrorResponse(error: unknown): NextResponse {
   if (error instanceof CourierServiceError) {
     return NextResponse.json(
-      { code: error.code, message: error.message, details: error.details },
+      { code: error.code, message: error.message, details: error.details, orderId: error.orderId },
       { status: error.status },
     );
   }

@@ -96,6 +96,20 @@ export function ProductDetailView({
     listCategories().then(setCategories).catch(() => setCategories([]));
   }, [load]);
 
+  // Live stock refresh — a merchant staff member often has this page open
+  // while a customer is mid-checkout on the same product; stock must move
+  // without a manual reload, same as order-status screens already do
+  // elsewhere. Deliberately does NOT call `reset()` (which would blow away
+  // any in-progress edit in the form below) — it only refreshes the plain
+  // `product` state, which the read-only "Stock atual" line below reads
+  // from directly, decoupled from the editable stock-adjust input.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      getProduct(shopId, productId).then(setProduct).catch(() => {});
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, [shopId, productId]);
+
   useEffect(() => {
     const load = categoryId ? listSubcategories(categoryId) : Promise.resolve([]);
     load.then(setSubcategories).catch(() => setSubcategories([]));
@@ -240,6 +254,10 @@ export function ProductDetailView({
       {actionError ? <p className="text-sm text-red-500">{actionError}</p> : null}
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Stock atual</p>
+          <p className="text-lg font-bold text-foreground">{product.stockQuantity} unidades</p>
+        </div>
         <form onSubmit={handleStockSubmit(onStockSubmit)} className="flex items-end gap-3">
             <Input
               label="Ajustar stock (quantidade absoluta)"

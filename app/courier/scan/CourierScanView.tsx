@@ -60,7 +60,10 @@ export function CourierScanView() {
         <p className="mt-1 text-sm text-muted">Aponte a câmara ao código mostrado pelo cliente para confirmar a entrega.</p>
       </div>
 
-      <QrScanner paused={busy} onDecode={handleDecode} />
+      {/* Camera fully stops (unmounted) once there's a result to show —
+          scanning again requires an explicit "Tentar novamente"/"Ler outro
+          código" tap, not a live feed running behind an error card. */}
+      {error ? null : <QrScanner paused={busy} onDecode={handleDecode} />}
 
       {error?.kind === "terminal" ? (
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">

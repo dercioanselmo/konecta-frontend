@@ -2292,3 +2292,81 @@ class.
   frontend; both backend services `clean compile` clean.
 
 **Still not visually verified** — same environment gap as prior rounds.
+
+## Round 65: the terminal-order link from Round 64 was actually broken (BFF layer dropped orderId); live stock, dashboard product boxes, merchant scan simplified (2026-09-14)
+
+**Real bug found**: Round 64's "already delivered/cancelled/refunded"
+distinction worked correctly all the way through both backend services
+(verified live at the time), but **never actually reached the browser**
+— live user testing showed only the plain message, no link, on both
+MERCHANT_STAFF and courier. Root cause: the Next.js BFF layer has its
+own error-forwarding wrapper classes per backend (`OrdersServiceError`
+in `lib/orders/ordersApi.ts`, `CourierServiceError` in
+`lib/courier/courierApi.ts`), each hand-typed to only carry
+`code`/`message`/`details` — neither had ever been taught about
+`orderId`, so it was silently dropped at that hop on **every** order
+route, not just the QR ones. Round 64's own verification never caught
+this because it curl'd the backend services directly, bypassing the
+BFF entirely. **Lesson for next time: verify through the actual
+Next.js routes the frontend calls, not just the backend underneath
+them** — confirmed by testing through `localhost:3000` this time
+(logging in via `/api/auth/login` for a real session cookie first),
+not just the backend ports.
+- Fixed both wrapper classes (and their `*ApiErrorResponse`/
+  `*ApiErrorResponse` NextResponse builders) to carry `orderId` through.
+  `ApiErrorBody`/`ClientApiError` already had the field from Round 64;
+  it was only ever the BFF hop losing it.
+- **Also fixed a second real bug while reproducing this**:
+  `CourierScanView.tsx` kept the `QrScanner` (camera) mounted and
+  running even after an error/terminal result appeared underneath it —
+  unlike `PickupQrScanner.tsx`, which already early-returns and
+  unmounts the scanner on any result. Now conditionally rendered
+  (`{error ? null : <QrScanner ... />}`), matching that same
+  "camera fully stops once there's something to show" behavior.
+- **Live-verified through the real Next.js stack this time** (not just
+  the backend): both `POST /api/merchant/shops/{shopId}/orders/complete-by-qr`
+  and `POST /api/courier/orders/scan-customer-qr`, called against
+  `localhost:3000` with a real logged-in session cookie, now return
+  `orderId` in the error body exactly as the backend sends it.
+
+**MERCHANT_STAFF scan simplified to match the courier's own pattern**
+(explicit ask — "same as we did on the Courier"): `PickupQrScanner.tsx`
+no longer shows an "Encomenda avançada" success card or a "different
+order" mismatch card — a successful scan now `router.push`es straight
+to that order's detail page, same as `CourierScanView.tsx` already
+does, so staff land ready to change status with zero intermediary taps.
+The `expectedOrderId`/`onValidated` props (only ever used for the now-
+removed mismatch messaging) were dropped from the component; the
+caller `ScanOrderView.tsx` still reads `expectedOrderId` itself for its
+own back-link/heading text, it just no longer passes it down.
+
+**Live stock now updates without a manual reload.** A real gap: a
+merchant staff member watching a product's detail page while a
+customer completed checkout on that same product saw a stale stock
+count until they manually refreshed — everything else in this app
+(order status, etc.) already polls live, this page never did.
+`ProductDetailView.tsx` now polls `getProduct` every 15s and updates
+the plain `product` state — deliberately **not** calling `reset()` on
+the edit form (which would blow away an in-progress edit), so a new
+read-only "Stock atual: N unidades" line was added next to the
+stock-adjust control, sourced directly from that live-polled `product`
+state rather than the editable (uncontrolled) form input. The editable
+"Ajustar stock"/"Quantidade em stock" fields are intentionally left
+alone by the poll — only the plain display refreshes live, matching
+the safe convention of never silently rewriting an open form under a
+user's hands.
+
+**Dashboard product boxes made clickable.** `ShopDashboard.tsx`'s
+"Produtos"/"Produtos ativos"/"Stock baixo" boxes were plain `<div>`s —
+the Orders boxes right above them were already `<Link>`s to the orders
+tab. Changed all three to `<Link href="{basePath}/{shopId}/products">`,
+matching that existing pattern exactly.
+
+- `tsc --noEmit`, `eslint`, and `npm run build` all clean.
+
+**Still not visually verified** — same environment gap as prior rounds.
+Given Round 64's false confidence from backend-only verification, this
+round's fixes were specifically confirmed through the real Next.js
+routes — but the actual rendered pages (camera stopping, the live
+stock number ticking, the dashboard boxes being clickable) still
+weren't seen in an actual browser.

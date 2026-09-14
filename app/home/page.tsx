@@ -5,6 +5,7 @@ import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { SearchBar } from "@/components/customer/SearchBar";
 import { getCurrentUser } from "@/lib/auth/session";
 import { roleHomePath } from "@/lib/auth/roles";
+import { ROLE_LABELS } from "@/lib/auth/roleLabels";
 import { storesApiFetch } from "@/lib/stores/storesApi";
 import type { Category } from "@/lib/stores/types";
 
@@ -23,6 +24,13 @@ export default async function CustomerHomePage() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
       <CustomerHeader user={user} />
+
+      {user?.status === "PENDING" && user.requestedRole ? (
+        <p className="mt-4 rounded-xl bg-brand-orange/10 px-4 py-3 text-sm text-brand-orange">
+          O seu pedido para se tornar {ROLE_LABELS[user.requestedRole]} está pendente de aprovação. Enquanto isso,
+          pode continuar a usar a conta como cliente normalmente.
+        </p>
+      ) : null}
 
       <div className="mt-5 flex items-center gap-1.5 text-sm text-muted">
         <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.75} stroke="currentColor" className="h-4 w-4 shrink-0">

@@ -70,6 +70,10 @@ export interface ApiErrorBody {
   message: string;
   details?: string[];
   timestamp?: string;
+  /** Set on a handful of order-related conflicts (e.g. scanning an
+   * already-delivered/cancelled/refunded order's QR) so the UI can offer
+   * a direct link to that order instead of just a plain error message. */
+  orderId?: string;
 }
 
 export class ApiError extends Error {

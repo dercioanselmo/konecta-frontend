@@ -10,10 +10,14 @@ import { ClientApiError } from "@/lib/auth/client";
 import { ORDER_STATUS_LABELS } from "@/lib/checkout/orderStatusLabels";
 import type { MerchantOrder } from "@/lib/orders/merchantTypes";
 
+const TERMINAL_CODES = ["ORDER_ALREADY_DELIVERED", "ORDER_CANCELLED", "ORDER_REFUNDED"] as const;
+
 type Result =
   | { kind: "success"; order: MerchantOrder }
   /** API call succeeded, but the resolved order isn't the one this scan was opened to validate. */
   | { kind: "mismatch"; order: MerchantOrder }
+  /** Order already reached a real end state (delivered/cancelled/refunded) — not a bad code, just nothing left to do here. */
+  | { kind: "terminal"; message: string; orderId: string }
   | { kind: "error"; message: string };
 
 interface PickupQrScannerProps {
@@ -60,10 +64,14 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
       setManualCode("");
       onValidated?.(order);
     } catch (err) {
-      setResult({
-        kind: "error",
-        message: err instanceof ClientApiError ? err.message : "Código inválido ou encomenda não encontrada.",
-      });
+      if (err instanceof ClientApiError && err.orderId && (TERMINAL_CODES as readonly string[]).includes(err.code)) {
+        setResult({ kind: "terminal", message: err.message, orderId: err.orderId });
+      } else {
+        setResult({
+          kind: "error",
+          message: err instanceof ClientApiError ? err.message : "Código inválido ou encomenda não encontrada.",
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -75,7 +83,7 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
         className={`flex flex-col gap-3 rounded-2xl border p-5 ${
           result.kind === "success"
             ? "border-brand-green/40 bg-brand-green/10"
-            : result.kind === "mismatch"
+            : result.kind === "mismatch" || result.kind === "terminal"
               ? "border-amber-500/40 bg-amber-500/10"
               : "border-red-500/40 bg-red-500/10"
         }`}
@@ -101,6 +109,13 @@ export function PickupQrScanner({ shopId, basePath = "/merchant/shops", expected
             <p className="text-sm text-muted">Novo estado da encomenda lida: {ORDER_STATUS_LABELS[result.order.status] ?? result.order.status}</p>
             <Link href={`${basePath}/${shopId}/orders/${result.order.orderId}`} className="text-sm font-medium text-amber-700 hover:underline">
               Ver essa encomenda →
+            </Link>
+          </>
+        ) : result.kind === "terminal" ? (
+          <>
+            <p className="text-sm font-semibold text-amber-700">{result.message}</p>
+            <Link href={`${basePath}/${shopId}/orders/${result.orderId}`} className="text-sm font-medium text-amber-700 hover:underline">
+              Ver detalhes da encomenda →
             </Link>
           </>
         ) : (

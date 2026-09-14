@@ -2167,3 +2167,128 @@ button.
 
 **Still not visually verified** — same environment gap as the last two
 rounds, no headless-browser tool available.
+
+## Round 63: global scan no longer shows its own result card — straight to the order detail page instead (2026-09-14)
+
+Explicit correction to Round 62's `CourierScanView.tsx`: it showed a
+"Código válido" result card with its own inline "Confirmar entrega"
+button on the scan page itself — not what was asked. The scan's only
+job is to resolve which order the code belongs to; confirming delivery
+happens on that order's own detail page (which already has "Confirmar
+entrega" right at the top per Round 62).
+
+- `CourierScanView.tsx` simplified: on a successful decode/resolve, it
+  now just `router.push`es straight to
+  `/courier/orders/{orderId}?code={the scanned code}` — no result card,
+  no second button on this page at all. Only remaining local state is
+  the scan-error case (invalid code / not this courier's order), shown
+  inline with a retry button.
+- `CourierOrderDetailView.tsx` picks up that `?code=` param on mount
+  and **re-validates it server-side** (`resolveCourierOrderByCustomerQr`
+  again, checked against `orderId`) before arming `customerQrValidated`
+  — deliberately not just trusting a bare "validated=true" flag off the
+  URL, which anyone could type in manually to skip the real scan. Silent
+  no-op on failure (wrong order, already-consumed code, etc.) — the
+  entregador can still scan again via the in-page scanner right there,
+  nothing breaks.
+- Net effect: from anywhere in the app, tap the scan FAB → scan → land
+  directly on the right order's detail page with "Confirmar entrega"
+  already clickable, no extra screen or popup in between.
+- One lint fix needed along the way: the new validation effect's
+  `setState` calls had to move inside a `queueMicrotask(...)` wrapper —
+  this codebase's `react-hooks/set-state-in-effect` rule (flags
+  synchronous `setState` directly in an effect body) is already handled
+  this same way elsewhere (e.g. `CourierOrdersDashboard.tsx`'s own
+  `load()` call in its mount effect) — matched that existing pattern
+  here.
+- **Live-verified the exact three-call sequence the real UI now makes**:
+  scan-customer-qr resolve (from the scan page) → the same call again
+  as the detail page's own re-validation on mount → `PATCH .../status
+  DELIVERED` from that page's "Confirmar entrega" button — all three
+  succeeded in order against a real `IN_TRANSIT` test order, ending
+  `DELIVERED`.
+- `tsc --noEmit`, `eslint`, and `npm run build` all clean.
+
+**Still not visually verified** — same environment gap as prior rounds.
+
+## Round 64: distinct messages for scanning an already-delivered/cancelled/refunded order's QR — both MERCHANT_STAFF and courier scanners (2026-09-14)
+
+Both scanners used to collapse this case to a generic "Código do
+cliente inválido"/"Código inválido" — technically true (nothing left to
+advance) but misleading, since the code itself is perfectly valid, the
+order has just already finished. Now surfaced as a specific, actionable
+message with a link to that order's own detail page.
+
+**Backend (`konecta-order-service`) — the source of the distinction:**
+- `ApiException` (and `ApiErrorResponse`) gained an optional `orderId`
+  field — set only on the three new exceptions below, so the scanning
+  UI can link straight to the order instead of a dead-end message.
+  Three new exception classes: `OrderAlreadyDeliveredException` (409
+  `ORDER_ALREADY_DELIVERED`, "Encomenda já foi entregue ao cliente."),
+  `OrderCancelledException` (409 `ORDER_CANCELLED`, "Encomenda foi
+  cancelada."), `OrderRefundedException` (409 `ORDER_REFUNDED`,
+  "Encomenda foi reembolsada.").
+- `MerchantOrderService.completeByQr`: the terminal-status check now
+  runs up front, before branching on which code matched (customer or
+  courier) — `DELIVERED` (any mode) or `PICKED_UP` **for a PICKUP
+  order** (that status already reads as "Entregue" in the roadmap, per
+  AGENTS.md §9's folding rule) throws `OrderAlreadyDeliveredException`;
+  `CANCELLED`/`REFUNDED` throw their own exceptions instead of the old
+  flat `InvalidTransitionException`.
+- `CourierOrderService.validateCustomerQr` (order-service, backs the
+  courier's `scan-customer-qr`): courier-ownership is still checked
+  first and still collapses to the generic `InvalidCustomerQrException`
+  on a mismatch — the non-confirming precedent for "not your order"
+  stays exactly as documented. Only once it's confirmed to genuinely be
+  *this courier's own* order does a `DELIVERED`/`CANCELLED`/`REFUNDED`
+  status get the specific exception instead of the generic one; any
+  other non-`IN_TRANSIT` status (a courier scanning too early) still
+  falls back to the generic message too.
+
+**Backend (`konecta-courier-service`) — carrying the distinction through the proxy hop:**
+- Same `orderId` field added to its own `ApiException`/`ApiError`.
+- `CourierOrderService.scanCustomerQr` used to collapse *every*
+  `FeignException.Conflict` from order-service to one generic
+  `INVALID_CUSTOMER_QR` — new `translateCustomerQrConflict` parses the
+  upstream JSON body (`ObjectMapper`, now constructor-injected) and,
+  only for the three known order-state codes, re-throws with the same
+  code/message/`orderId` intact; anything else (including a malformed
+  body, defensively) still falls back to the original generic message —
+  no new failure mode introduced by trusting an upstream body more than
+  before.
+
+**Frontend:**
+- `ApiErrorBody`/`ClientApiError` gained an `orderId?: string` field —
+  populated automatically wherever an error body carries one, no
+  per-call-site change needed elsewhere.
+- `PickupQrScanner.tsx` (MERCHANT_STAFF): new `"terminal"` result kind,
+  amber-styled like the existing "different order" mismatch card, shown
+  whenever the error carries one of the three known codes plus an
+  `orderId` — message from the backend + a "Ver detalhes da encomenda
+  →" link to that order.
+- `CourierScanView.tsx` (entregador's global scan): same distinction —
+  a `ScanError` union splits `"terminal"` (amber card, same link
+  pattern) from `"invalid"` (the original red card) instead of one flat
+  error string.
+- The in-page inline scanner on `CourierOrderDetailView.tsx` (only
+  shown while that order's own status is still `IN_TRANSIT`) wasn't
+  touched — that specific order can't itself be in one of these three
+  terminal states while its own "Ler QR do cliente" button is even
+  visible, so the scenario doesn't arise there.
+
+**Live-verified all three backend paths directly**: MERCHANT_STAFF
+`complete-by-qr` against a real `DELIVERED` order and a real
+`CANCELLED` order (each returned `409` with the right code, message,
+and `orderId`); the courier's `scan-customer-qr` through the full
+courier-service → order-service proxy hop against a real order that
+courier had already delivered (same result, `orderId` intact through
+the JSON re-parse); and a regression check with a genuinely unknown
+code confirming it still falls back to the original generic
+`INVALID_CUSTOMER_QR` with `orderId: null`. No `REFUNDED` test order
+existed in this environment's data to exercise that exact branch live,
+but it's the same code path as `CANCELLED` with a different exception
+class.
+- `tsc --noEmit`, `eslint`, and `npm run build` all clean on the
+  frontend; both backend services `clean compile` clean.
+
+**Still not visually verified** — same environment gap as prior rounds.

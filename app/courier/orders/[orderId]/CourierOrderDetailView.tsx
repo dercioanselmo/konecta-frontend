@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { OrderQrCode } from "@/components/orders/OrderQrCode";
 import { QrScanner } from "@/components/merchant/QrScanner";
@@ -20,6 +21,30 @@ export function CourierOrderDetailView({ orderId }: { orderId: string }) {
   const [busy, setBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [customerQrValidated, setCustomerQrValidated] = useState(false);
+  const searchParams = useSearchParams();
+
+  // Arrived here straight from the global scan entry point
+  // (`/courier/scan`) instead of scanning again on this page — re-run the
+  // same server-side validation against the code it already read, rather
+  // than trusting a plain "it's fine" flag from the URL, so this can't be
+  // spoofed by just navigating with a query param.
+  useEffect(() => {
+    const code = searchParams.get("code");
+    if (!code || customerQrValidated) return;
+    queueMicrotask(() => {
+      setBusy(true);
+      resolveCourierOrderByCustomerQr(code)
+        .then((resolved) => {
+          if (resolved.orderId === orderId) setCustomerQrValidated(true);
+        })
+        .catch(() => {
+          // Silent: the code might belong to a different order, or have
+          // already been used — the entregador can still scan again below.
+        })
+        .finally(() => setBusy(false));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount for this order/code pair
+  }, [orderId]);
 
   if (!order) return <p className="text-sm text-muted">A carregar encomenda…</p>;
 

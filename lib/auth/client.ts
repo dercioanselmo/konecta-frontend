@@ -14,12 +14,14 @@ export class ClientApiError extends Error {
   code: string;
   status: number;
   details?: string[];
+  orderId?: string;
 
   constructor(status: number, body: ApiErrorBody) {
     super(body.message || body.code);
     this.code = body.code;
     this.status = status;
     this.details = body.details;
+    this.orderId = body.orderId;
   }
 }
 

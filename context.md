@@ -2105,3 +2105,65 @@ backend services compile clean.
 headless-browser tool available. Everything above is confirmed via
 direct API calls, a clean production build, and code review, not a
 screenshot of the rendered pages.
+
+## Round 62: global scan entry point for the entregador + "Ler QR do cliente" repositioned (2026-09-14)
+
+Two related asks: the "Ler QR do cliente" button sat too far down the
+order-detail page (below the map/items, needing a scroll) at exactly
+the moment — final delivery step — the entregador most needs it fast;
+and more fundamentally, scanning shouldn't require opening a specific
+order's detail page at all, same as the merchant side's floating scan
+button.
+
+- **`components/courier/CourierScanFab.tsx`** — same fixed
+  bottom-right floating-button pattern as the merchant's
+  `ScanQrFab.tsx`, linking to a new `/courier/scan`. Rendered once in
+  `CourierShell.tsx`, so it's on every `/courier/**` page.
+- **New `app/courier/scan/` (`CourierScanView.tsx`)** — a self-contained
+  scan → validate → confirm flow, independent of any specific order:
+  scans the customer's QR (`scan-customer-qr`, which resolves *and*
+  validates it belongs to this courier's own `IN_TRANSIT` order — the
+  code alone is never trusted), shows which order/store/customer it
+  resolved to, then a single "Confirmar entrega" tap calls
+  `PATCH .../status {"status":"DELIVERED"}`. Same one-manual-step-
+  after-scan principle as everywhere else in this app. Success state
+  links to that order's own detail page.
+- **`CourierOrderDetailView.tsx` reordered**: "Confirmar entrega" /
+  "Ler QR do cliente" (+ its inline scanner) moved to immediately under
+  the status roadmap, ahead of the courier-QR card, map, delivery info,
+  and items — the fastest-needed action for the final step no longer
+  requires scrolling past all of that. This in-page scanner (scoped to
+  just this one order, with an order-id-mismatch guard) is kept as an
+  alternative alongside the new global one, not replaced by it.
+- **Real bug found while live-testing this**: `CourierOrderService.java`
+  (courier-service) had **three leftover call sites** (`assign`,
+  `updateStatus`, `scanCustomerQr`) still calling the old single-arg
+  `toDetail(dto)` from *before* Round 61 added the `distanceKm`
+  parameter — only `getDetail` had been updated. This type-checked as
+  a genuine compile error, but `./mvnw -q -o compile` reported success
+  both times it was run this session; the error only surfaced at
+  runtime against the live service as `500 INTERNAL_ERROR` /
+  `"Unresolved compilation problem"` (an ECJ-style incremental-compiler
+  artifact baked into a stale `target/classes`, not a real javac
+  failure). **Caught by actually calling the endpoints live** (`assign`,
+  `updateStatus` via `scan-customer-qr` → `PATCH .../status`) rather
+  than trusting the Maven compile output alone — a `./mvnw clean
+  compile` afterward confirmed the fix and, worryingly, means a plain
+  (non-clean) `compile` in this environment cannot be fully trusted to
+  surface every real error; prefer `clean compile` when verifying a fix
+  actually took before restarting either service. Fixed by passing the
+  already-resolved `CourierProfile` through all three call sites.
+- **Live-verified end-to-end** against the real courier account
+  (`dercio.anselmo4@zohomail.com`) after the fix: `scan-customer-qr`
+  correctly resolved a real `IN_TRANSIT` order (with `distanceKm`
+  populated) without transitioning it, the follow-up `PATCH
+  .../status DELIVERED` succeeded, and the order then correctly
+  appeared first in `GET .../orders/history` (sorted by `updatedAt`,
+  not `createdAt` — the just-delivered order surfaced first despite
+  being one of the oldest by creation date, confirming the sort key is
+  right).
+- `tsc --noEmit`, `eslint`, and `npm run build` all clean on the
+  frontend; both backend services `clean compile` clean.
+
+**Still not visually verified** — same environment gap as the last two
+rounds, no headless-browser tool available.

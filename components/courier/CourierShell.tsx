@@ -3,6 +3,7 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoutButton } from "@/components/LogoutButton";
 import { UserMenu } from "@/components/UserMenu";
+import { CourierScanFab } from "@/components/courier/CourierScanFab";
 import type { UserProfile } from "@/lib/auth/types";
 
 /** Shared chrome for every /courier page — header + Início/Lojas tabs. */
@@ -37,6 +38,7 @@ export function CourierShell({ user, children }: { user: UserProfile; children: 
       </nav>
 
       <main className="flex-1 py-6">{children}</main>
+      <CourierScanFab />
     </div>
   );
 }

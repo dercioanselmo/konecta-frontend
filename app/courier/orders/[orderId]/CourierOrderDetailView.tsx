@@ -37,6 +37,20 @@ export function CourierOrderDetailView({ orderId }: { orderId: string }) {
       <Link href="/courier" className="text-sm text-muted hover:underline">← Encomendas</Link>
       <div><p className="text-sm text-muted">Encomenda</p><h1 className="text-xl font-bold text-foreground">#{order.orderId.slice(0, 8)} · {order.storeName}</h1><p className="mt-1 text-sm text-muted">{ORDER_STATUS_LABELS[order.status] ?? order.status}{order.distanceKm != null ? ` · ${order.distanceKm.toFixed(1)} km` : ""}</p></div>
       <div className="rounded-2xl border border-border bg-surface p-4"><OrderStatusRoadmap status={order.status} deliveryMode="DELIVERY" /></div>
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {/* Kept right at the top, immediately under the roadmap — this is the
+          one action an entregador needs fastest at the final delivery step,
+          and it used to sit all the way below the map/items, requiring a
+          scroll. The global scan FAB (`/courier/scan`, reachable from
+          anywhere) covers the same step without opening this page at all;
+          this stays as the in-context alternative. */}
+      {canComplete ? <Button type="button" loading={busy} onClick={() => void run(() => updateCourierOrderStatus(orderId, "DELIVERED"))}>Confirmar entrega</Button> : null}
+      {order.status === "IN_TRANSIT" && !customerQrValidated ? (
+        <div className="flex flex-col gap-2">
+          <Button type="button" loading={busy} onClick={() => setScannerOpen((open) => !open)}>Ler QR do cliente</Button>
+          {scannerOpen ? <div className="rounded-2xl border border-border bg-surface p-4"><QrScanner paused={busy} onDecode={(code) => { setBusy(true); setError(null); void resolveCourierOrderByCustomerQr(code).then((resolved) => { if (resolved.orderId !== orderId) throw new Error("O código pertence a outra encomenda."); setCustomerQrValidated(true); setScannerOpen(false); }).catch((err) => setError(err instanceof ClientApiError ? err.message : "Código QR inválido para esta encomenda.")).finally(() => setBusy(false)); }} /><p className="mt-2 text-xs text-muted">Depois de validar o código do cliente, confirme a entrega.</p></div> : null}
+        </div>
+      ) : null}
       {order.courierQrCode && order.status === "COURIER_ASSIGNED" ? <div className="rounded-2xl border border-border bg-surface p-4"><OrderQrCode qrCode={order.courierQrCode} size={220} /><p className="mt-2 text-xs text-muted">Mostre este código à loja para confirmarem a recolha e avançar para &quot;A caminho&quot;.</p></div> : null}
       <CourierDeliveryMap order={order} />
       <div className="rounded-2xl border border-border bg-surface p-4 text-sm"><p className="font-semibold text-foreground">Entrega</p><p className="mt-1 text-muted">Cliente: {order.customerName}</p>{order.deliveryAddress ? <p className="mt-1 text-muted">{order.deliveryAddress.address}, {order.deliveryAddress.neighborhood}, {order.deliveryAddress.city}</p> : null}<p className="mt-1 text-muted">Contacto: {order.contactPhone}</p><p className="mt-2 font-semibold text-foreground">Valor a receber: {order.total.toFixed(2)} MT</p></div>
@@ -60,14 +74,10 @@ export function CourierOrderDetailView({ orderId }: { orderId: string }) {
           ))}
         </div>
       </div>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         {canAssign ? <Button type="button" loading={busy} onClick={() => void run(() => assignCourierOrder(orderId))}>Atribuir-me</Button> : null}
         {canCancel ? <Button type="button" loading={busy} className="bg-red-600 hover:bg-red-700" onClick={() => void run(() => cancelCourierAssignment(orderId))}>Cancelar atribuição</Button> : null}
-        {order.status === "IN_TRANSIT" && !customerQrValidated ? <Button type="button" loading={busy} onClick={() => setScannerOpen((open) => !open)}>Ler QR do cliente</Button> : null}
-        {canComplete ? <Button type="button" loading={busy} onClick={() => void run(() => updateCourierOrderStatus(orderId, "DELIVERED"))}>Confirmar entrega</Button> : null}
       </div>
-        {scannerOpen ? <div className="rounded-2xl border border-border bg-surface p-4"><QrScanner paused={busy} onDecode={(code) => { setBusy(true); setError(null); void resolveCourierOrderByCustomerQr(code).then((resolved) => { if (resolved.orderId !== orderId) throw new Error("O código pertence a outra encomenda."); setCustomerQrValidated(true); setScannerOpen(false); }).catch((err) => setError(err instanceof ClientApiError ? err.message : "Código QR inválido para esta encomenda.")).finally(() => setBusy(false)); }} /><p className="mt-2 text-xs text-muted">Depois de validar o código do cliente, confirme a entrega.</p></div> : null}
     </main>
   );
 }

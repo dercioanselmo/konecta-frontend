@@ -2428,3 +2428,84 @@ round's fixes were specifically confirmed through the real Next.js
 routes — but the actual rendered pages (camera stopping, the live
 stock number ticking, the dashboard boxes being clickable) still
 weren't seen in an actual browser.
+
+## Infra aside (2026-09-15): AWS account suspended — S3 media swapped for local-disk storage
+
+Unrelated to any frontend feature. The user's AWS account (the one
+backing `konecta-media-564956047797` and the RDS/EKS deployment used in
+recent rounds) got suspended — no more S3 access. Demo is now running
+entirely on the user's own machine, so photo/document uploads needed a
+local stand-in with the exact same contract, swappable back once a paid
+AWS account exists.
+
+**Backend-only change**, both `konecta-stores-and-stock-service` (shop
+logos/covers, product photos, user profile photos — the latter is
+routed through this service, not security-service, see Round 2026-09-14
+courier-photo-bug notes) and `konecta-courier-service` (courier
+documents, PDFs included) already had a clean `ObjectStorageService`
+interface with exactly 4 methods (`presignUpload`, `exists`, `delete`,
+`presignDownload`) sitting between every controller and
+`S3ObjectStorageService` — the right seam to swap on, no controller/
+caller code touched at all.
+
+- New `LocalFilesystemObjectStorageService` in both services — same
+  interface, writes to `${konecta.storage.local-dir}` (default
+  `./media-storage`, gitignored) instead of S3, and instead of a
+  presigned S3 URL hands back a URL pointing at a new `MediaController`
+  on the **same service** (`PUT/GET /media/{key}`). `PUT` plays the
+  role of S3's presigned PUT (no app auth — same trust model: knowing
+  the URL/key is the only gate), `GET` plays the presigned-GET role.
+  Deliberately local/demo-only: the returned URL has to be reachable by
+  whatever browser is doing the upload, which only holds when the
+  frontend and backend run on the same machine.
+- Both `S3ObjectStorageService` and each service's `AwsS3Config` (the
+  actual `S3Client`/`S3Presigner` beans) gated behind
+  `@ConditionalOnProperty(konecta.storage.provider=s3)` — left fully
+  intact, not deleted. `LocalFilesystemObjectStorageService`/
+  `MediaController` are the `local` default
+  (`matchIfMissing = true`) instead. **Switching back to S3 once a paid
+  account exists is one property**, not a rewrite:
+  `konecta.storage.provider=s3`.
+- `/media/**` is new attack surface neither service had before — it's
+  the first time either service is ever called *directly by a
+  browser* (every other endpoint is server-to-server from the Next.js
+  BFF). Added a CORS config scoped to just that path
+  (`konecta.cors.allowed-origins`, defaults to `http://localhost:3000`)
+  and permitted it in each `SecurityConfig` — same reasoning as the
+  S3-bucket-CORS fix from Round 2026-09-14 (browser talking directly to
+  a storage layer needs that storage layer's own CORS rules).
+- No frontend changes needed at all: `next.config.ts` has no
+  `images.remotePatterns` allowlist, and every `<Image>` in this
+  codebase already renders photo URLs with `unoptimized` (S3's
+  presigned-URL query strings already made Next's image optimizer
+  cache pointless — same reasoning covers a local URL with no query
+  string just as well).
+
+**Real, unrelated bug found and fixed while verifying this live**:
+`konecta-security-service`'s `application.yml` — unlike every other
+service's `.properties` file — never declared `spring.config.import=
+optional:file:.env[.properties]`, so it silently never loaded its own
+`.env` at all. It had been working anyway because whatever process
+originally started it had `JWT_SECRET` set directly as a real shell
+env var (which Spring's `${VAR:default}` placeholders pick up
+regardless of `spring.config.import`); restarting it in a plain shell
+without that var set made it silently fall back to the hardcoded
+placeholder default in `application.yml`, and every other service
+started rejecting its tokens with "Invalid signature" (they correctly
+load the real shared secret from their own `.env`). Confirmed root
+cause by manually computing the HMAC-SHA256 signature both ways in
+Python and comparing byte-for-byte. Fixed by adding the same
+`spring.config.import` line security-service should have had all
+along — this was a real gap that could bite anyone launching this one
+service outside whatever environment originally set that shell var,
+not something introduced by this round's change.
+
+**Live-verified end-to-end** (after fixing the above, which was
+blocking every test): full presign → PUT → GET → confirm cycle for a
+user profile photo, a courier document, and a product photo — all real
+`200`s, correct `Content-Type` on GET, files landing on disk exactly
+where the S3 key structure said they should
+(`media-storage/users/<id>/<uuid>.jpg`,
+`media-storage/couriers/<id>/documents/<uuid>.jpg`,
+`media-storage/products/<id>/<uuid>.jpg`). Both services `clean
+compile`.
